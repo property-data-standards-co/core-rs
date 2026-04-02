@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/pdtf-core", "bindings/python"]
+resolver = "2"
