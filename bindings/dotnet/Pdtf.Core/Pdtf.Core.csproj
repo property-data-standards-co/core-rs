@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>Pdtf.Core</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Ed Molyneux</Authors>
+    <Company>Moverly</Company>
+    <Description>PDTF 2.0 core library — Ed25519 signing/verification, DIDs, VCs, Bitstring Status List, TIR. Wraps native Rust library via P/Invoke.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/property-data-standards-co/core-rs</RepositoryUrl>
+    <PackageTags>pdtf;verifiable-credentials;did;ed25519;property-data</PackageTags>
+  </PropertyGroup>
+
+</Project>
