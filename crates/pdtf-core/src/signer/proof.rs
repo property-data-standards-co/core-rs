@@ -134,57 +134,15 @@ pub fn verify_proof(document: &VerifiableCredential, public_key: &[u8; 32]) -> b
 
 /// Generate a current UTC ISO 8601 timestamp.
 fn utc_now() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-    format_epoch_timestamp(secs)
+    chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()
 }
 
 /// Format epoch seconds as ISO 8601 UTC timestamp.
 pub fn format_epoch_timestamp(epoch_secs: u64) -> String {
-    let days = epoch_secs / 86400;
-    let time_secs = epoch_secs % 86400;
-    let hours = time_secs / 3600;
-    let minutes = (time_secs % 3600) / 60;
-    let seconds = time_secs % 60;
-
-    let (year, month, day) = days_to_ymd(days);
-    format!(
-        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
-        year, month, day, hours, minutes, seconds
-    )
-}
-
-fn days_to_ymd(mut days: u64) -> (u64, u64, u64) {
-    let mut year = 1970u64;
-    loop {
-        let days_in_year = if is_leap(year) { 366 } else { 365 };
-        if days < days_in_year {
-            break;
-        }
-        days -= days_in_year;
-        year += 1;
-    }
-    let days_in_months: Vec<u64> = if is_leap(year) {
-        vec![31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    } else {
-        vec![31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    };
-    let mut month = 1u64;
-    for dim in days_in_months {
-        if days < dim {
-            break;
-        }
-        days -= dim;
-        month += 1;
-    }
-    (year, month, days + 1)
-}
-
-fn is_leap(y: u64) -> bool {
-    (y.is_multiple_of(4) && !y.is_multiple_of(100)) || y.is_multiple_of(400)
+    use chrono::{DateTime, Utc};
+    DateTime::<Utc>::from_timestamp(epoch_secs as i64, 0)
+        .map(|dt| dt.format("%Y-%m-%dT%H:%M:%SZ").to_string())
+        .unwrap_or_else(|| "1970-01-01T00:00:00Z".to_string())
 }
 
 /// Serialize a VC without the proof field.

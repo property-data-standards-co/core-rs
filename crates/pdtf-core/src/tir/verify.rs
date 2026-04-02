@@ -2,6 +2,7 @@
 
 use crate::tir::path_match::any_path_matches;
 use crate::types::{IssuerStatus, TirRegistry, TirVerificationResult};
+use chrono::{DateTime, Utc};
 
 /// Verify that an issuer DID is authorised for a set of claimed paths.
 ///
@@ -59,14 +60,23 @@ pub fn verify_tir(
         }
     }
 
-    // Check validity window
-    let now_epoch = current_epoch_secs();
+    // Check validity window using chrono — fail closed on parse errors
+    let now = Utc::now();
 
     if let Some(ref valid_from) = issuer.valid_from {
-        if let (Some(from_epoch), Some(now)) = (parse_iso_epoch(valid_from), now_epoch) {
-            if from_epoch > now {
+        match DateTime::parse_from_rfc3339(valid_from) {
+            Ok(from_dt) => {
+                if from_dt > now {
+                    warnings.push(format!(
+                        "Issuer '{}' is not yet active (validFrom: {})",
+                        issuer.slug, valid_from
+                    ));
+                    hard_fail = true;
+                }
+            }
+            Err(_) => {
                 warnings.push(format!(
-                    "Issuer '{}' is not yet active (validFrom: {})",
+                    "Issuer '{}' has unparseable validFrom '{}' — treating as untrusted",
                     issuer.slug, valid_from
                 ));
                 hard_fail = true;
@@ -75,10 +85,19 @@ pub fn verify_tir(
     }
 
     if let Some(ref valid_until) = issuer.valid_until {
-        if let (Some(until_epoch), Some(now)) = (parse_iso_epoch(valid_until), now_epoch) {
-            if until_epoch < now {
+        match DateTime::parse_from_rfc3339(valid_until) {
+            Ok(until_dt) => {
+                if until_dt < now {
+                    warnings.push(format!(
+                        "Issuer '{}' has expired (validUntil: {})",
+                        issuer.slug, valid_until
+                    ));
+                    hard_fail = true;
+                }
+            }
+            Err(_) => {
                 warnings.push(format!(
-                    "Issuer '{}' has expired (validUntil: {})",
+                    "Issuer '{}' has unparseable validUntil '{}' — treating as untrusted",
                     issuer.slug, valid_until
                 ));
                 hard_fail = true;
@@ -112,57 +131,6 @@ pub fn verify_tir(
         uncovered_paths,
         warnings,
     }
-}
-
-/// Get current epoch seconds, or None if system clock unavailable.
-fn current_epoch_secs() -> Option<u64> {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .ok()
-        .map(|d| d.as_secs())
-}
-
-/// Parse a simple ISO 8601 timestamp to epoch seconds.
-fn parse_iso_epoch(ts: &str) -> Option<u64> {
-    let ts = ts.trim_end_matches('Z');
-    let (date, time) = ts.split_once('T')?;
-    let parts: Vec<&str> = date.split('-').collect();
-    if parts.len() != 3 {
-        return None;
-    }
-    let year: u64 = parts[0].parse().ok()?;
-    let month: u64 = parts[1].parse().ok()?;
-    let day: u64 = parts[2].parse().ok()?;
-
-    let time_parts: Vec<&str> = time.split(':').collect();
-    if time_parts.len() != 3 {
-        return None;
-    }
-    let hours: u64 = time_parts[0].parse().ok()?;
-    let minutes: u64 = time_parts[1].parse().ok()?;
-    let seconds: u64 = time_parts[2].parse().ok()?;
-
-    let mut days: u64 = 0;
-    for y in 1970..year {
-        days += if is_leap(y) { 366 } else { 365 };
-    }
-    let days_in_months: Vec<u64> = if is_leap(year) {
-        vec![31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    } else {
-        vec![31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    };
-    for m in 0..(month.saturating_sub(1) as usize) {
-        if m < days_in_months.len() {
-            days += days_in_months[m];
-        }
-    }
-    days += day.saturating_sub(1);
-
-    Some(days * 86400 + hours * 3600 + minutes * 60 + seconds)
-}
-
-fn is_leap(y: u64) -> bool {
-    (y.is_multiple_of(4) && !y.is_multiple_of(100)) || y.is_multiple_of(400)
 }
 
 #[cfg(test)]
@@ -340,5 +308,48 @@ mod tests {
             "Not-yet-active issuer should not be trusted"
         );
         assert!(result.warnings.iter().any(|w| w.contains("not yet active")));
+    }
+
+    #[test]
+    fn test_unparseable_valid_from_fails_closed() {
+        let mut registry = make_registry();
+        if let Some(issuer) = registry.issuers.get_mut("moverly") {
+            issuer.valid_from = Some("not-a-date".to_string());
+        }
+        let result = verify_tir(
+            &registry,
+            "did:web:propdata.org.uk:issuers:moverly",
+            &["Property:/tenure".to_string()],
+        );
+        assert!(!result.trusted, "Unparseable validFrom must fail closed");
+        assert!(result.warnings.iter().any(|w| w.contains("unparseable")));
+    }
+
+    #[test]
+    fn test_fractional_second_valid_from() {
+        let mut registry = make_registry();
+        if let Some(issuer) = registry.issuers.get_mut("moverly") {
+            issuer.valid_from = Some("2024-01-01T00:00:00.500Z".to_string());
+        }
+        let result = verify_tir(
+            &registry,
+            "did:web:propdata.org.uk:issuers:moverly",
+            &["Property:/tenure".to_string()],
+        );
+        assert!(result.trusted, "Fractional-second timestamps should be accepted");
+    }
+
+    #[test]
+    fn test_offset_valid_from() {
+        let mut registry = make_registry();
+        if let Some(issuer) = registry.issuers.get_mut("moverly") {
+            issuer.valid_from = Some("2024-01-01T00:00:00+00:00".to_string());
+        }
+        let result = verify_tir(
+            &registry,
+            "did:web:propdata.org.uk:issuers:moverly",
+            &["Property:/tenure".to_string()],
+        );
+        assert!(result.trusted, "Offset timestamps should be accepted");
     }
 }

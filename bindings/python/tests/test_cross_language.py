@@ -73,13 +73,13 @@ class TestSigningAndVerification:
         assert signed['proof']['proofValue'].startswith('z')
 
         # Verify with the correct key
-        assert pdtf_core.verify_proof_py(signed_json, kp['public_key_hex']) is True
+        assert pdtf_core.verify_proof(signed_json, kp['public_key_hex']) is True
 
     def test_verify_typescript_signed_vc(self, vectors):
         """Verify VCs that were signed by TypeScript."""
         for vv in vectors['verification']:
             vc_json = json.dumps(vv['vc'])
-            result = pdtf_core.verify_proof_py(vc_json, vv['publicKeyHex'])
+            result = pdtf_core.verify_proof(vc_json, vv['publicKeyHex'])
             assert result == vv['expectedValid'], \
                 f"Verification mismatch for '{vv['name']}': expected {vv['expectedValid']}, got {result}"
 
@@ -87,7 +87,7 @@ class TestSigningAndVerification:
         """Tampered VC should fail verification."""
         tampered = [v for v in vectors['verification'] if v['name'] == 'tampered-subject']
         assert len(tampered) == 1
-        assert pdtf_core.verify_proof_py(
+        assert pdtf_core.verify_proof(
             json.dumps(tampered[0]['vc']), tampered[0]['publicKeyHex']
         ) is False
 
@@ -95,7 +95,7 @@ class TestSigningAndVerification:
         """Valid VC verified with wrong public key should fail."""
         wrong_key = [v for v in vectors['verification'] if v['name'] == 'wrong-key']
         assert len(wrong_key) == 1
-        assert pdtf_core.verify_proof_py(
+        assert pdtf_core.verify_proof(
             json.dumps(wrong_key[0]['vc']), wrong_key[0]['publicKeyHex']
         ) is False
 
@@ -187,16 +187,16 @@ class TestEndToEnd:
         signed = json.loads(signed_json)
 
         # 4. Verify — should pass
-        assert pdtf_core.verify_proof_py(signed_json, kp['public_key_hex']) is True
+        assert pdtf_core.verify_proof(signed_json, kp['public_key_hex']) is True
 
         # 5. Tamper — should fail
         signed['credentialSubject']['floodRisk']['risk'] = 'high'
         tampered_json = json.dumps(signed)
-        assert pdtf_core.verify_proof_py(tampered_json, kp['public_key_hex']) is False
+        assert pdtf_core.verify_proof(tampered_json, kp['public_key_hex']) is False
 
         # 6. Wrong key — should fail
         kp2 = pdtf_core.generate_keypair()
-        assert pdtf_core.verify_proof_py(signed_json, kp2['public_key_hex']) is False
+        assert pdtf_core.verify_proof(signed_json, kp2['public_key_hex']) is False
 
         # 7. Status list
         bitstring = pdtf_core.create_status_list(131072)

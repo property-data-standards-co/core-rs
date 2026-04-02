@@ -1,7 +1,7 @@
 //! 4-stage Verifiable Credential verification.
 //!
-//! 1. Structure check — required fields, valid types
-//! 2. Signature verification — resolve DID → get public key → verify_proof
+//! 1. Structure check — required fields, valid types, proof type/cryptosuite
+//! 2. Signature verification — resolve DID → issuer binding → assertionMethod → verify_proof
 //! 3. TIR check — issuer authorised for claimed paths
 //! 4. Status check — credential not revoked
 
@@ -11,10 +11,14 @@ use crate::signer::proof::verify_proof;
 use crate::status::bitstring::{decode_status_list, get_bit};
 use crate::tir::verify::verify_tir;
 use crate::types::*;
+use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
+/// Required W3C VC v2 context URI.
+const W3C_VC_V2_CONTEXT: &str = "https://www.w3.org/ns/credentials/v2";
+
 /// Clock skew tolerance for timestamp checks (5 minutes).
-const CLOCK_SKEW_TOLERANCE_SECS: u64 = 300;
+const CLOCK_SKEW_TOLERANCE_SECS: i64 = 300;
 
 /// Result of VC verification.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,7 +63,7 @@ pub async fn verify_vc(options: VerifyVcOptions<'_>) -> VcVerificationResult {
     }
     result.structure_ok = true;
 
-    // Stage 2: Signature verification
+    // Stage 2: Signature verification (includes issuer binding + assertionMethod)
     match verify_signature(options.vc, options.resolver).await {
         Ok(true) => result.signature_ok = true,
         Ok(false) => {
@@ -114,18 +118,28 @@ pub async fn verify_vc(options: VerifyVcOptions<'_>) -> VcVerificationResult {
     result
 }
 
+/// Parse an ISO 8601 / RFC 3339 timestamp to epoch seconds.
+/// Fails closed: returns Err if the timestamp cannot be parsed.
+pub(crate) fn parse_timestamp(ts: &str) -> Result<i64> {
+    DateTime::parse_from_rfc3339(ts)
+        .map(|dt| dt.timestamp())
+        .map_err(|e| {
+            PdtfError::VerificationError(format!("Invalid timestamp '{}': {}", ts, e))
+        })
+}
+
 /// Stage 1: Check VC structure.
 fn check_structure(vc: &VerifiableCredential) -> Result<()> {
-    // Must have W3C VC v2 context
+    // Must have exact W3C VC v2 context URI
     if vc.context.is_empty() {
         return Err(PdtfError::VerificationError("Missing @context".into()));
     }
 
-    let has_vc_context = vc.context.iter().any(|c| c.contains("credentials"));
-    if !has_vc_context {
-        return Err(PdtfError::VerificationError(
-            "Missing W3C Verifiable Credentials context".into(),
-        ));
+    if !vc.context.iter().any(|c| c == W3C_VC_V2_CONTEXT) {
+        return Err(PdtfError::VerificationError(format!(
+            "Missing required W3C VC v2 context: {}",
+            W3C_VC_V2_CONTEXT
+        )));
     }
 
     // Must include VerifiableCredential type
@@ -146,8 +160,24 @@ fn check_structure(vc: &VerifiableCredential) -> Result<()> {
     }
 
     // Must have proof for verification
-    if vc.proof.is_none() {
-        return Err(PdtfError::VerificationError("Missing proof".into()));
+    let proof = vc.proof.as_ref().ok_or_else(|| {
+        PdtfError::VerificationError("Missing proof".into())
+    })?;
+
+    // Validate proof type — must be DataIntegrityProof
+    if proof.proof_type != "DataIntegrityProof" {
+        return Err(PdtfError::VerificationError(format!(
+            "Unexpected proof type: '{}' (expected 'DataIntegrityProof')",
+            proof.proof_type
+        )));
+    }
+
+    // Validate proof cryptosuite — must be eddsa-jcs-2022
+    if proof.cryptosuite != "eddsa-jcs-2022" {
+        return Err(PdtfError::VerificationError(format!(
+            "Unexpected cryptosuite: '{}' (expected 'eddsa-jcs-2022')",
+            proof.cryptosuite
+        )));
     }
 
     // credentialSubject.id must not be empty
@@ -157,27 +187,25 @@ fn check_structure(vc: &VerifiableCredential) -> Result<()> {
         ));
     }
 
-    // Check validFrom is not in the future (with clock skew tolerance)
-    if let Ok(now) = current_epoch_secs() {
-        if let Some(valid_from_epoch) = parse_iso_epoch(&vc.valid_from) {
-            if valid_from_epoch > now + CLOCK_SKEW_TOLERANCE_SECS {
-                return Err(PdtfError::VerificationError(format!(
-                    "validFrom '{}' is in the future",
-                    vc.valid_from
-                )));
-            }
-        }
+    // Check validFrom — fail-closed on parse error
+    let valid_from_epoch = parse_timestamp(&vc.valid_from)?;
+    let now = chrono::Utc::now().timestamp();
 
-        // Check validUntil is not in the past (credential expired)
-        if let Some(ref valid_until) = vc.valid_until {
-            if let Some(valid_until_epoch) = parse_iso_epoch(valid_until) {
-                if valid_until_epoch + CLOCK_SKEW_TOLERANCE_SECS < now {
-                    return Err(PdtfError::VerificationError(format!(
-                        "Credential expired: validUntil '{}'",
-                        valid_until
-                    )));
-                }
-            }
+    if valid_from_epoch > now + CLOCK_SKEW_TOLERANCE_SECS {
+        return Err(PdtfError::VerificationError(format!(
+            "validFrom '{}' is in the future",
+            vc.valid_from
+        )));
+    }
+
+    // Check validUntil is not in the past (credential expired) — fail-closed on parse error
+    if let Some(ref valid_until) = vc.valid_until {
+        let valid_until_epoch = parse_timestamp(valid_until)?;
+        if valid_until_epoch + CLOCK_SKEW_TOLERANCE_SECS < now {
+            return Err(PdtfError::VerificationError(format!(
+                "Credential expired: validUntil '{}'",
+                valid_until
+            )));
         }
     }
 
@@ -185,21 +213,35 @@ fn check_structure(vc: &VerifiableCredential) -> Result<()> {
 }
 
 /// Stage 2: Verify the signature by resolving the issuer DID.
+///
+/// Includes:
+/// - Issuer ↔ proof DID binding check
+/// - assertionMethod membership check
+/// - Cryptographic signature verification
 async fn verify_signature(vc: &VerifiableCredential, resolver: &DidResolver) -> Result<bool> {
     let proof = vc
         .proof
         .as_ref()
         .ok_or_else(|| PdtfError::VerificationError("No proof to verify".into()))?;
 
-    // Extract DID from verification method
-    let did = proof
+    // Extract DID from verification method (part before '#')
+    let proof_did = proof
         .verification_method
         .split('#')
         .next()
         .unwrap_or(&proof.verification_method);
 
+    // FIX 1: Issuer binding — vc.issuer must match the DID from proof.verificationMethod
+    let issuer_did = vc.issuer.id();
+    if issuer_did != proof_did {
+        return Err(PdtfError::VerificationError(format!(
+            "Issuer DID '{}' does not match proof verification method DID '{}'",
+            issuer_did, proof_did
+        )));
+    }
+
     // Resolve DID document
-    let doc = resolver.resolve(did).await?;
+    let doc = resolver.resolve(proof_did).await?;
 
     // Find verification method and extract public key — exact match required (no fallback)
     let vms = doc.verification_method.ok_or_else(|| {
@@ -215,6 +257,24 @@ async fn verify_signature(vc: &VerifiableCredential, resolver: &DidResolver) -> 
                 proof.verification_method
             ))
         })?;
+
+    // FIX 4: Check that the verification method is in assertionMethod
+    let assertion_methods = doc.assertion_method.as_ref().ok_or_else(|| {
+        PdtfError::VerificationError(
+            "DID document has no assertionMethod — cannot verify proof purpose".into(),
+        )
+    })?;
+
+    let vm_in_assertion = assertion_methods.iter().any(|am| {
+        am.id() == proof.verification_method
+    });
+
+    if !vm_in_assertion {
+        return Err(PdtfError::VerificationError(format!(
+            "Verification method '{}' is not listed in assertionMethod",
+            proof.verification_method
+        )));
+    }
 
     let multibase = vm.public_key_multibase.as_ref().ok_or_else(|| {
         PdtfError::VerificationError("Verification method missing publicKeyMultibase".into())
@@ -267,59 +327,6 @@ fn check_credential_status(status: &CredentialStatus, bitstring_b64: &str) -> Re
 
     let bitstring = decode_status_list(bitstring_b64)?;
     get_bit(&bitstring, index)
-}
-
-/// Get current epoch seconds.
-fn current_epoch_secs() -> std::result::Result<u64, ()> {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .map_err(|_| ())
-}
-
-/// Parse a simple ISO 8601 timestamp to epoch seconds.
-/// Supports format: YYYY-MM-DDTHH:MM:SSZ
-fn parse_iso_epoch(ts: &str) -> Option<u64> {
-    let ts = ts.trim_end_matches('Z');
-    let (date, time) = ts.split_once('T')?;
-    let parts: Vec<&str> = date.split('-').collect();
-    if parts.len() != 3 {
-        return None;
-    }
-    let year: u64 = parts[0].parse().ok()?;
-    let month: u64 = parts[1].parse().ok()?;
-    let day: u64 = parts[2].parse().ok()?;
-
-    let time_parts: Vec<&str> = time.split(':').collect();
-    if time_parts.len() != 3 {
-        return None;
-    }
-    let hours: u64 = time_parts[0].parse().ok()?;
-    let minutes: u64 = time_parts[1].parse().ok()?;
-    let seconds: u64 = time_parts[2].parse().ok()?;
-
-    // Approximate days from epoch
-    let mut days: u64 = 0;
-    for y in 1970..year {
-        days += if is_leap(y) { 366 } else { 365 };
-    }
-    let days_in_months: Vec<u64> = if is_leap(year) {
-        vec![31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    } else {
-        vec![31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    };
-    for m in 0..(month.saturating_sub(1) as usize) {
-        if m < days_in_months.len() {
-            days += days_in_months[m];
-        }
-    }
-    days += day.saturating_sub(1);
-
-    Some(days * 86400 + hours * 3600 + minutes * 60 + seconds)
-}
-
-fn is_leap(y: u64) -> bool {
-    (y.is_multiple_of(4) && !y.is_multiple_of(100)) || y.is_multiple_of(400)
 }
 
 #[cfg(test)]
@@ -617,5 +624,171 @@ mod tests {
             .errors
             .iter()
             .any(|e| e.contains("credentialSubject.id")));
+    }
+
+    // ── New tests for review fixes ──────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_issuer_proof_did_mismatch_fails() {
+        let (mut vc, _provider) = make_signed_vc().await;
+        // Tamper the issuer to a different DID — proof was signed by original key
+        vc.issuer = Issuer::Did("did:web:attacker.example".to_string());
+
+        let resolver = DidResolver::default();
+
+        let result = verify_vc(VerifyVcOptions {
+            vc: &vc,
+            resolver: &resolver,
+            tir_registry: None,
+            claimed_paths: vec![],
+            status_list_bitstring: None,
+        })
+        .await;
+
+        assert!(!result.valid, "Issuer/proof DID mismatch must fail");
+        assert!(result.errors.iter().any(|e| e.contains("does not match")));
+    }
+
+    #[tokio::test]
+    async fn test_fractional_second_timestamp_parsed() {
+        // Fractional seconds must be parsed correctly, not skip the check
+        let provider = MemoryKeyProvider::new();
+        provider
+            .generate_key("frac-key", KeyCategory::Adapter)
+            .await
+            .unwrap();
+
+        let signer = VcSigner::from_key_id(&provider, "frac-key").await.unwrap();
+
+        let vc = signer
+            .sign(BuildVcOptions {
+                vc_type: vec!["PropertyDataCredential".to_string()],
+                credential_subject: CredentialSubject {
+                    id: "urn:pdtf:uprn:123456789".to_string(),
+                    claims: HashMap::new(),
+                },
+                id: Some("urn:uuid:frac-ts".to_string()),
+                valid_from: Some("2024-06-01T12:00:00.123Z".to_string()),
+                valid_until: None,
+                credential_status: None,
+                evidence: None,
+                terms_of_use: None,
+            })
+            .await
+            .unwrap();
+
+        let resolver = DidResolver::default();
+
+        let result = verify_vc(VerifyVcOptions {
+            vc: &vc,
+            resolver: &resolver,
+            tir_registry: None,
+            claimed_paths: vec![],
+            status_list_bitstring: None,
+        })
+        .await;
+
+        assert!(result.valid, "Fractional-second timestamps must be accepted");
+        assert!(result.structure_ok);
+    }
+
+    #[tokio::test]
+    async fn test_offset_timestamp_parsed() {
+        let provider = MemoryKeyProvider::new();
+        provider
+            .generate_key("offset-key", KeyCategory::Adapter)
+            .await
+            .unwrap();
+
+        let signer = VcSigner::from_key_id(&provider, "offset-key").await.unwrap();
+
+        let vc = signer
+            .sign(BuildVcOptions {
+                vc_type: vec!["PropertyDataCredential".to_string()],
+                credential_subject: CredentialSubject {
+                    id: "urn:pdtf:uprn:123456789".to_string(),
+                    claims: HashMap::new(),
+                },
+                id: Some("urn:uuid:offset-ts".to_string()),
+                valid_from: Some("2024-06-01T12:00:00+00:00".to_string()),
+                valid_until: None,
+                credential_status: None,
+                evidence: None,
+                terms_of_use: None,
+            })
+            .await
+            .unwrap();
+
+        let resolver = DidResolver::default();
+
+        let result = verify_vc(VerifyVcOptions {
+            vc: &vc,
+            resolver: &resolver,
+            tir_registry: None,
+            claimed_paths: vec![],
+            status_list_bitstring: None,
+        })
+        .await;
+
+        assert!(result.valid, "Offset timestamps (+00:00) must be accepted");
+        assert!(result.structure_ok);
+    }
+
+    #[tokio::test]
+    async fn test_wrong_proof_type_fails() {
+        let (mut vc, _provider) = make_signed_vc().await;
+        if let Some(ref mut proof) = vc.proof {
+            proof.proof_type = "Ed25519Signature2020".to_string();
+        }
+
+        let resolver = DidResolver::default();
+
+        let result = verify_vc(VerifyVcOptions {
+            vc: &vc,
+            resolver: &resolver,
+            tir_registry: None,
+            claimed_paths: vec![],
+            status_list_bitstring: None,
+        })
+        .await;
+
+        assert!(!result.valid, "Wrong proof type must fail structure check");
+        assert!(!result.structure_ok);
+        assert!(result.errors.iter().any(|e| e.contains("proof type")));
+    }
+
+    #[tokio::test]
+    async fn test_wrong_cryptosuite_fails() {
+        let (mut vc, _provider) = make_signed_vc().await;
+        if let Some(ref mut proof) = vc.proof {
+            proof.cryptosuite = "ecdsa-jcs-2019".to_string();
+        }
+
+        let resolver = DidResolver::default();
+
+        let result = verify_vc(VerifyVcOptions {
+            vc: &vc,
+            resolver: &resolver,
+            tir_registry: None,
+            claimed_paths: vec![],
+            status_list_bitstring: None,
+        })
+        .await;
+
+        assert!(!result.valid, "Wrong cryptosuite must fail structure check");
+        assert!(!result.structure_ok);
+        assert!(result.errors.iter().any(|e| e.contains("cryptosuite")));
+    }
+
+    #[test]
+    fn test_parse_timestamp_rfc3339() {
+        assert!(parse_timestamp("2024-06-01T12:00:00Z").is_ok());
+        assert!(parse_timestamp("2024-06-01T12:00:00.123Z").is_ok());
+        assert!(parse_timestamp("2024-06-01T12:00:00+00:00").is_ok());
+        assert!(parse_timestamp("2024-06-01T12:00:00.999999+05:30").is_ok());
+        // Invalid timestamps must error
+        assert!(parse_timestamp("not-a-date").is_err());
+        assert!(parse_timestamp("2024-06-01").is_err());
+        assert!(parse_timestamp("").is_err());
     }
 }

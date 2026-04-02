@@ -32,6 +32,9 @@ flate2 = "1"
 # Cache
 lru = "0.12"
 
+# Timestamps
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+
 # Errors
 thiserror = "2"
 

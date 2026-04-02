@@ -101,7 +101,7 @@ fn sign_vc(vc_json: &str, secret_key_hex: &str) -> PyResult<String> {
 
 /// Verify a DataIntegrityProof on a VC.
 #[pyfunction]
-fn verify_proof_py(vc_json: &str, public_key_hex: &str) -> PyResult<bool> {
+fn verify_proof(vc_json: &str, public_key_hex: &str) -> PyResult<bool> {
     let pk_bytes = hex::decode(public_key_hex)
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("Invalid hex: {e}")))?;
     if pk_bytes.len() != 32 {
@@ -160,7 +160,7 @@ fn check_status(bitstring_b64: &str, index: usize) -> PyResult<bool> {
 fn pdtf_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(generate_keypair, m)?)?;
     m.add_function(wrap_pyfunction!(sign_vc, m)?)?;
-    m.add_function(wrap_pyfunction!(verify_proof_py, m)?)?;
+    m.add_function(wrap_pyfunction!(verify_proof, m)?)?;
     m.add_function(wrap_pyfunction!(resolve_did_key, m)?)?;
     m.add_function(wrap_pyfunction!(check_tir, m)?)?;
     m.add_function(wrap_pyfunction!(create_status_list, m)?)?;
