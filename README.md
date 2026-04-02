@@ -115,6 +115,39 @@ is_revoked = pdtf_core.check_status(bitstring, 42)
 print(f"Revoked: {is_revoked}")  # False
 ```
 
+## C#/.NET Usage
+
+C# bindings via P/Invoke to the native FFI library. Targets .NET 8.0.
+
+See [`bindings/dotnet/README.md`](bindings/dotnet/README.md) for full documentation, model classes, and platform setup.
+
+### Quick Example
+
+```csharp
+using Pdtf.Core;
+
+// Generate a keypair
+var kp = PdtfCore.GenerateKeyPair();
+Console.WriteLine($"DID: {kp.Did}");
+
+// Sign a credential
+string signedJson = PdtfCore.SignCredential(vcJson, kp.SecretKeyHex);
+
+// Verify the signature
+bool valid = PdtfCore.VerifyProof(signedJson, kp.PublicKeyHex);
+Console.WriteLine($"Valid: {valid}"); // True
+```
+
+### Building
+
+```bash
+# Build native library
+cargo build --release -p pdtf-core-ffi
+
+# Build .NET project
+cd bindings/dotnet && dotnet build
+```
+
 ## Architecture
 
 ```
