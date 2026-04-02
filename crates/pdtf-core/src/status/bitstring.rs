@@ -31,7 +31,7 @@ pub fn create_status_list(size: usize) -> Result<Vec<u8>> {
             "Status list must be at least {MIN_BITSTRING_SIZE} bits (16KB). Got {size}."
         )));
     }
-    if size % 8 != 0 {
+    if !size.is_multiple_of(8) {
         return Err(PdtfError::StatusListError(
             "Status list size must be a multiple of 8".into(),
         ));

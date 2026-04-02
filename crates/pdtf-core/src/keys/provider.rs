@@ -120,7 +120,7 @@ pub mod memory {
             .unwrap_or_default();
         let secs = dur.as_secs();
         // Rough ISO format — good enough for testing
-        format!("1970-01-01T00:00:00Z")
+        "1970-01-01T00:00:00Z".to_string()
             .replace("1970-01-01T00:00:00Z", &format_timestamp(secs))
     }
 
@@ -169,7 +169,7 @@ pub mod memory {
     }
 
     fn is_leap(y: u64) -> bool {
-        (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+        (y.is_multiple_of(4) && !y.is_multiple_of(100)) || y.is_multiple_of(400)
     }
 }
 
