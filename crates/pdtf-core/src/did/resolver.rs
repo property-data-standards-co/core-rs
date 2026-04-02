@@ -43,7 +43,8 @@ pub struct DidResolver {
 impl DidResolver {
     /// Create a new DID resolver.
     pub fn new(options: DidResolverOptions) -> Self {
-        let cache_size = NonZeroUsize::new(options.max_cache_size).unwrap_or(NonZeroUsize::new(1000).unwrap());
+        let cache_size =
+            NonZeroUsize::new(options.max_cache_size).unwrap_or(NonZeroUsize::new(1000).unwrap());
         Self {
             cache: Mutex::new(LruCache::new(cache_size)),
             default_ttl_ms: options.default_ttl_ms,
@@ -57,7 +58,10 @@ impl DidResolver {
     pub async fn resolve(&self, did: &str) -> Result<DidDocument> {
         // Check cache
         {
-            let mut cache = self.cache.lock().unwrap();
+            let mut cache = self
+                .cache
+                .lock()
+                .map_err(|_| PdtfError::DidResolutionFailed("Cache lock poisoned".into()))?;
             if let Some(entry) = cache.get(did) {
                 match entry.expires_at {
                     None => return Ok(entry.doc.clone()), // never expires
@@ -93,7 +97,10 @@ impl DidResolver {
 
         // Store in cache
         {
-            let mut cache = self.cache.lock().unwrap();
+            let mut cache = self
+                .cache
+                .lock()
+                .map_err(|_| PdtfError::DidResolutionFailed("Cache lock poisoned".into()))?;
             cache.put(
                 did.to_string(),
                 CacheEntry {
@@ -108,20 +115,21 @@ impl DidResolver {
 
     /// Invalidate a cached DID document.
     pub fn invalidate(&self, did: &str) {
-        let mut cache = self.cache.lock().unwrap();
-        cache.pop(did);
+        if let Ok(mut cache) = self.cache.lock() {
+            cache.pop(did);
+        }
     }
 
     /// Clear the entire cache.
     pub fn clear_cache(&self) {
-        let mut cache = self.cache.lock().unwrap();
-        cache.clear();
+        if let Ok(mut cache) = self.cache.lock() {
+            cache.clear();
+        }
     }
 
     /// Current cache size.
     pub fn cache_size(&self) -> usize {
-        let cache = self.cache.lock().unwrap();
-        cache.len()
+        self.cache.lock().map(|c| c.len()).unwrap_or(0)
     }
 }
 

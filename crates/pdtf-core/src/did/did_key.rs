@@ -5,7 +5,7 @@
 
 use crate::error::{PdtfError, Result};
 use crate::keys::ed25519::{did_key_to_public_key, public_key_to_multibase};
-use crate::types::{DidDocument, VerificationMethod};
+use crate::types::{DidDocument, VerificationMethod, VerificationMethodOrRef};
 
 /// Resolve a did:key to its implicit DID document.
 ///
@@ -38,8 +38,8 @@ pub fn resolve_did_key(did: &str) -> Result<DidDocument> {
         controller: None,
         also_known_as: None,
         verification_method: Some(vec![verification_method]),
-        authentication: Some(vec![key_id.clone()]),
-        assertion_method: Some(vec![key_id]),
+        authentication: Some(vec![VerificationMethodOrRef::Reference(key_id.clone())]),
+        assertion_method: Some(vec![VerificationMethodOrRef::Reference(key_id)]),
         key_agreement: None,
         service: None,
         deactivated: None,

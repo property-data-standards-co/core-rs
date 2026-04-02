@@ -80,14 +80,16 @@ pub mod memory {
 
             self.keys
                 .lock()
-                .unwrap()
+                .map_err(|_| crate::error::PdtfError::InvalidKey("Key store lock poisoned".into()))?
                 .insert(key_id.to_string(), stored);
 
             Ok(record)
         }
 
         async fn sign(&self, key_id: &str, data: &[u8]) -> Result<Vec<u8>> {
-            let keys = self.keys.lock().unwrap();
+            let keys = self.keys.lock().map_err(|_| {
+                crate::error::PdtfError::InvalidKey("Key store lock poisoned".into())
+            })?;
             let stored = keys.get(key_id).ok_or_else(|| {
                 crate::error::PdtfError::InvalidKey(format!("Key not found: {key_id}"))
             })?;
@@ -96,7 +98,9 @@ pub mod memory {
         }
 
         async fn get_public_key(&self, key_id: &str) -> Result<Vec<u8>> {
-            let keys = self.keys.lock().unwrap();
+            let keys = self.keys.lock().map_err(|_| {
+                crate::error::PdtfError::InvalidKey("Key store lock poisoned".into())
+            })?;
             let stored = keys.get(key_id).ok_or_else(|| {
                 crate::error::PdtfError::InvalidKey(format!("Key not found: {key_id}"))
             })?;
@@ -104,7 +108,9 @@ pub mod memory {
         }
 
         async fn resolve_did_key(&self, key_id: &str) -> Result<String> {
-            let keys = self.keys.lock().unwrap();
+            let keys = self.keys.lock().map_err(|_| {
+                crate::error::PdtfError::InvalidKey("Key store lock poisoned".into())
+            })?;
             let stored = keys.get(key_id).ok_or_else(|| {
                 crate::error::PdtfError::InvalidKey(format!("Key not found: {key_id}"))
             })?;
@@ -113,63 +119,12 @@ pub mod memory {
     }
 
     fn chrono_now() -> String {
-        // Simple ISO 8601 timestamp without chrono dependency
         use std::time::{SystemTime, UNIX_EPOCH};
-        let dur = SystemTime::now()
+        let secs = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap_or_default();
-        let secs = dur.as_secs();
-        // Rough ISO format — good enough for testing
-        "1970-01-01T00:00:00Z".to_string()
-            .replace("1970-01-01T00:00:00Z", &format_timestamp(secs))
-    }
-
-    fn format_timestamp(epoch_secs: u64) -> String {
-        // Calculate date/time from epoch seconds
-        let days = epoch_secs / 86400;
-        let time_secs = epoch_secs % 86400;
-        let hours = time_secs / 3600;
-        let minutes = (time_secs % 3600) / 60;
-        let seconds = time_secs % 60;
-
-        // Simple date calculation (not accounting for leap seconds, but close enough)
-        let (year, month, day) = days_to_ymd(days);
-
-        format!(
-            "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
-            year, month, day, hours, minutes, seconds
-        )
-    }
-
-    fn days_to_ymd(mut days: u64) -> (u64, u64, u64) {
-        // Approximate — good enough for ISO timestamps
-        let mut year = 1970u64;
-        loop {
-            let days_in_year = if is_leap(year) { 366 } else { 365 };
-            if days < days_in_year {
-                break;
-            }
-            days -= days_in_year;
-            year += 1;
-        }
-        let days_in_months: Vec<u64> = if is_leap(year) {
-            vec![31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-        } else {
-            vec![31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-        };
-        let mut month = 1u64;
-        for dim in days_in_months {
-            if days < dim {
-                break;
-            }
-            days -= dim;
-            month += 1;
-        }
-        (year, month, days + 1)
-    }
-
-    fn is_leap(y: u64) -> bool {
-        (y.is_multiple_of(4) && !y.is_multiple_of(100)) || y.is_multiple_of(400)
+            .unwrap_or_default()
+            .as_secs();
+        crate::signer::proof::format_epoch_timestamp(secs)
     }
 }
 

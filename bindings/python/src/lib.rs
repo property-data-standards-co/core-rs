@@ -25,18 +25,18 @@ fn generate_keypair() -> PyResult<PyObject> {
 fn sign_vc(vc_json: &str, secret_key_hex: &str) -> PyResult<String> {
     use ed25519_dalek::Signer;
     use sha2::{Digest, Sha256};
-    use std::collections::BTreeMap;
 
     let secret_bytes = hex::decode(secret_key_hex)
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("Invalid hex: {e}")))?;
 
     if secret_bytes.len() != 32 {
-        return Err(pyo3::exceptions::PyValueError::new_err("Secret key must be 32 bytes"));
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Secret key must be 32 bytes",
+        ));
     }
 
-    let signing_key = ed25519_dalek::SigningKey::from_bytes(
-        secret_bytes.as_slice().try_into().unwrap(),
-    );
+    let signing_key =
+        ed25519_dalek::SigningKey::from_bytes(secret_bytes.as_slice().try_into().unwrap());
     let verifying_key = signing_key.verifying_key();
     let did = ::pdtf_core::keys::ed25519::derive_did_key(verifying_key.as_bytes())
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
@@ -44,20 +44,30 @@ fn sign_vc(vc_json: &str, secret_key_hex: &str) -> PyResult<String> {
     let mut vc: ::pdtf_core::types::VerifiableCredential = serde_json::from_str(vc_json)
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("Invalid VC JSON: {e}")))?;
 
+    // FIX 6: Validate issuer matches signing key
+    if vc.issuer.id() != did {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "Issuer DID '{}' does not match signing key DID '{}'",
+            vc.issuer.id(),
+            did
+        )));
+    }
+
     let multibase = &did["did:key:".len()..];
     let verification_method = format!("{did}#{multibase}");
     let timestamp = vc.valid_from.clone();
 
-    // JCS-canonicalize proof options
-    let mut proof_opts = BTreeMap::new();
-    proof_opts.insert("created", serde_json::Value::String(timestamp.clone()));
-    proof_opts.insert("cryptosuite", serde_json::Value::String("eddsa-jcs-2022".into()));
-    proof_opts.insert("proofPurpose", serde_json::Value::String("assertionMethod".into()));
-    proof_opts.insert("type", serde_json::Value::String("DataIntegrityProof".into()));
-    proof_opts.insert("verificationMethod", serde_json::Value::String(verification_method.clone()));
+    // JCS-canonicalize proof options using json_canon
+    let proof_opts = serde_json::json!({
+        "type": "DataIntegrityProof",
+        "cryptosuite": "eddsa-jcs-2022",
+        "verificationMethod": verification_method,
+        "proofPurpose": "assertionMethod",
+        "created": timestamp,
+    });
 
-    let canonical_proof_opts = serde_json::to_string(&proof_opts)
-        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+    let canonical_proof_opts = json_canon::to_string(&proof_opts)
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("JCS error: {e}")))?;
     let proof_options_hash = Sha256::digest(canonical_proof_opts.as_bytes());
 
     let mut doc_value = serde_json::to_value(&vc)
@@ -65,7 +75,8 @@ fn sign_vc(vc_json: &str, secret_key_hex: &str) -> PyResult<String> {
     if let Some(obj) = doc_value.as_object_mut() {
         obj.remove("proof");
     }
-    let canonical_doc = canonical_json(&doc_value);
+    let canonical_doc = json_canon::to_string(&doc_value)
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("JCS error: {e}")))?;
     let document_hash = Sha256::digest(canonical_doc.as_bytes());
 
     let mut combined = Vec::with_capacity(64);
@@ -88,34 +99,15 @@ fn sign_vc(vc_json: &str, secret_key_hex: &str) -> PyResult<String> {
         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
 }
 
-fn canonical_json(value: &serde_json::Value) -> String {
-    match value {
-        serde_json::Value::Object(map) => {
-            let mut sorted: std::collections::BTreeMap<&str, String> = std::collections::BTreeMap::new();
-            for (k, v) in map {
-                sorted.insert(k.as_str(), canonical_json(v));
-            }
-            let entries: Vec<String> = sorted
-                .iter()
-                .map(|(k, v)| format!("{}:{}", serde_json::to_string(k).unwrap(), v))
-                .collect();
-            format!("{{{}}}", entries.join(","))
-        }
-        serde_json::Value::Array(arr) => {
-            let items: Vec<String> = arr.iter().map(canonical_json).collect();
-            format!("[{}]", items.join(","))
-        }
-        _ => serde_json::to_string(value).unwrap(),
-    }
-}
-
 /// Verify a DataIntegrityProof on a VC.
 #[pyfunction]
 fn verify_proof_py(vc_json: &str, public_key_hex: &str) -> PyResult<bool> {
     let pk_bytes = hex::decode(public_key_hex)
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("Invalid hex: {e}")))?;
     if pk_bytes.len() != 32 {
-        return Err(pyo3::exceptions::PyValueError::new_err("Public key must be 32 bytes"));
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Public key must be 32 bytes",
+        ));
     }
     let vc: ::pdtf_core::types::VerifiableCredential = serde_json::from_str(vc_json)
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("Invalid VC JSON: {e}")))?;
@@ -136,8 +128,10 @@ fn resolve_did_key(did: &str) -> PyResult<String> {
 /// Check TIR authorisation. Returns result JSON.
 #[pyfunction]
 fn check_tir(registry_json: &str, issuer_did: &str, paths: Vec<String>) -> PyResult<String> {
-    let registry: ::pdtf_core::types::TirRegistry = serde_json::from_str(registry_json)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("Invalid registry JSON: {e}")))?;
+    let registry: ::pdtf_core::types::TirRegistry =
+        serde_json::from_str(registry_json).map_err(|e| {
+            pyo3::exceptions::PyValueError::new_err(format!("Invalid registry JSON: {e}"))
+        })?;
     let result = ::pdtf_core::tir::verify::verify_tir(&registry, issuer_did, &paths);
     serde_json::to_string_pretty(&result)
         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))

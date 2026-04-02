@@ -40,8 +40,9 @@ pub fn path_matches(pattern: &str, path: &str) -> bool {
     }
 
     if let Some(prefix) = pat_path.strip_suffix("/*") {
-        // Entity:/prefix/* matches Entity:/prefix and Entity:/prefix/anything
-        path_path == prefix || path_path.starts_with(&format!("{prefix}/"))
+        // Entity:/prefix/* matches only children like Entity:/prefix/anything
+        // It does NOT match the parent Entity:/prefix itself
+        path_path.starts_with(&format!("{prefix}/"))
     } else {
         // Exact match
         pat_path == path_path
@@ -60,7 +61,10 @@ mod tests {
     #[test]
     fn test_wildcard_all() {
         assert!(path_matches("Property:*", "Property:/tenure"));
-        assert!(path_matches("Property:*", "Property:/energyEfficiency/rating"));
+        assert!(path_matches(
+            "Property:*",
+            "Property:/energyEfficiency/rating"
+        ));
         assert!(path_matches("Property:*", "Property:/anything/at/all"));
     }
 
@@ -74,7 +78,8 @@ mod tests {
             "Property:/energyEfficiency/*",
             "Property:/energyEfficiency/certificate"
         ));
-        assert!(path_matches(
+        // Wildcard should NOT match the parent path itself
+        assert!(!path_matches(
             "Property:/energyEfficiency/*",
             "Property:/energyEfficiency"
         ));
@@ -103,7 +108,10 @@ mod tests {
             "Property:/energyEfficiency/*".to_string(),
         ];
         assert!(any_path_matches(&patterns, "Property:/tenure"));
-        assert!(any_path_matches(&patterns, "Property:/energyEfficiency/rating"));
+        assert!(any_path_matches(
+            &patterns,
+            "Property:/energyEfficiency/rating"
+        ));
         assert!(!any_path_matches(&patterns, "Property:/other"));
     }
 }

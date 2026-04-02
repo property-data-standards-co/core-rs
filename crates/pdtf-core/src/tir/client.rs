@@ -30,7 +30,11 @@ impl TirClient {
     /// Load a registry from a JSON string.
     pub fn load_from_json(&self, json: &str) -> Result<TirRegistry> {
         let registry: TirRegistry = serde_json::from_str(json)?;
-        *self.cached.lock().unwrap() = Some(registry.clone());
+        *self
+            .cached
+            .lock()
+            .map_err(|_| PdtfError::TirError("TIR cache lock poisoned".into()))? =
+            Some(registry.clone());
         Ok(registry)
     }
 
@@ -58,13 +62,21 @@ impl TirClient {
             .await
             .map_err(|e| PdtfError::TirError(format!("Invalid TIR JSON: {e}")))?;
 
-        *self.cached.lock().unwrap() = Some(registry.clone());
+        *self
+            .cached
+            .lock()
+            .map_err(|_| PdtfError::TirError("TIR cache lock poisoned".into()))? =
+            Some(registry.clone());
         Ok(registry)
     }
 
     /// Get the current TIR registry.
     pub async fn get_registry(&self) -> Result<TirRegistry> {
-        let cached = self.cached.lock().unwrap().clone();
+        let cached = self
+            .cached
+            .lock()
+            .map_err(|_| PdtfError::TirError("TIR cache lock poisoned".into()))?
+            .clone();
         match cached {
             Some(reg) => Ok(reg),
             None => Err(PdtfError::TirError(
@@ -74,10 +86,7 @@ impl TirClient {
     }
 
     /// Look up an issuer by DID.
-    pub async fn find_issuer_by_did(
-        &self,
-        did: &str,
-    ) -> Result<Option<(String, TirIssuerEntry)>> {
+    pub async fn find_issuer_by_did(&self, did: &str) -> Result<Option<(String, TirIssuerEntry)>> {
         let registry = self.get_registry().await?;
         for (slug, entry) in &registry.issuers {
             if entry.did == did {
@@ -103,12 +112,14 @@ impl TirClient {
 
     /// Get the cached registry, if any.
     pub fn get_cached(&self) -> Option<TirRegistry> {
-        self.cached.lock().unwrap().clone()
+        self.cached.lock().ok()?.clone()
     }
 
     /// Clear the cache.
     pub fn clear_cache(&self) {
-        *self.cached.lock().unwrap() = None;
+        if let Ok(mut cached) = self.cached.lock() {
+            *cached = None;
+        }
     }
 }
 

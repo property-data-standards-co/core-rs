@@ -23,10 +23,7 @@ pub struct VerifiableCredential {
     pub valid_until: Option<String>,
     #[serde(rename = "credentialSubject")]
     pub credential_subject: CredentialSubject,
-    #[serde(
-        rename = "credentialStatus",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "credentialStatus", skip_serializing_if = "Option::is_none")]
     pub credential_status: Option<CredentialStatus>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proof: Option<DataIntegrityProof>,
@@ -114,15 +111,9 @@ pub struct Evidence {
     pub id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
-    #[serde(
-        rename = "retrievedAt",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "retrievedAt", skip_serializing_if = "Option::is_none")]
     pub retrieved_at: Option<String>,
-    #[serde(
-        rename = "documentReference",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "documentReference", skip_serializing_if = "Option::is_none")]
     pub document_reference: Option<String>,
     #[serde(flatten)]
     pub extra: HashMap<String, serde_json::Value>,
@@ -134,10 +125,7 @@ pub struct TermsOfUse {
     #[serde(rename = "type")]
     pub terms_type: String, // "PdtfAccessPolicy"
     pub confidentiality: Confidentiality,
-    #[serde(
-        rename = "authorisedRoles",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "authorisedRoles", skip_serializing_if = "Option::is_none")]
     pub authorised_roles: Option<Vec<String>>,
 }
 
@@ -163,20 +151,14 @@ pub struct DidDocument {
     pub controller: Option<StringOrArray>,
     #[serde(rename = "alsoKnownAs", skip_serializing_if = "Option::is_none")]
     pub also_known_as: Option<Vec<String>>,
-    #[serde(
-        rename = "verificationMethod",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "verificationMethod", skip_serializing_if = "Option::is_none")]
     pub verification_method: Option<Vec<VerificationMethod>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub authentication: Option<Vec<String>>,
-    #[serde(
-        rename = "assertionMethod",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub assertion_method: Option<Vec<String>>,
+    pub authentication: Option<Vec<VerificationMethodOrRef>>,
+    #[serde(rename = "assertionMethod", skip_serializing_if = "Option::is_none")]
+    pub assertion_method: Option<Vec<VerificationMethodOrRef>>,
     #[serde(rename = "keyAgreement", skip_serializing_if = "Option::is_none")]
-    pub key_agreement: Option<Vec<String>>,
+    pub key_agreement: Option<Vec<VerificationMethodOrRef>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service: Option<Vec<ServiceEndpoint>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -192,17 +174,34 @@ pub enum StringOrArray {
 }
 
 /// Verification method within a DID document.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VerificationMethod {
     pub id: String,
     #[serde(rename = "type")]
     pub method_type: String,
     pub controller: String,
-    #[serde(
-        rename = "publicKeyMultibase",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "publicKeyMultibase", skip_serializing_if = "Option::is_none")]
     pub public_key_multibase: Option<String>,
+}
+
+/// A verification method that can be either a string reference or an embedded object.
+/// Matches the DID spec where authentication/assertionMethod/keyAgreement can contain
+/// either a string reference to a verification method or an embedded verification method.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum VerificationMethodOrRef {
+    Reference(String),
+    Embedded(VerificationMethod),
+}
+
+impl VerificationMethodOrRef {
+    /// Get the ID of the verification method (either the reference string or the embedded id).
+    pub fn id(&self) -> &str {
+        match self {
+            VerificationMethodOrRef::Reference(s) => s,
+            VerificationMethodOrRef::Embedded(vm) => &vm.id,
+        }
+    }
 }
 
 /// Service endpoint in a DID document.

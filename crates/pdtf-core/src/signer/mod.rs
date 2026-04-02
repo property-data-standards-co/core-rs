@@ -65,9 +65,14 @@ impl<'a> VcSigner<'a> {
 
     /// Build and sign a Verifiable Credential.
     pub async fn sign(&self, options: BuildVcOptions) -> Result<VerifiableCredential> {
-        let valid_from = options
-            .valid_from
-            .unwrap_or_else(|| "2024-01-01T00:00:00Z".to_string());
+        let valid_from = options.valid_from.unwrap_or_else(|| {
+            use std::time::{SystemTime, UNIX_EPOCH};
+            let secs = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            proof::format_epoch_timestamp(secs)
+        });
 
         // Build unsigned VC
         let vc = VerifiableCredential {
@@ -171,6 +176,9 @@ mod tests {
             .unwrap();
 
         let signer = VcSigner::new(&provider, "web-key", "did:web:example.com");
-        assert_eq!(signer.build_verification_method(), "did:web:example.com#key-1");
+        assert_eq!(
+            signer.build_verification_method(),
+            "did:web:example.com#key-1"
+        );
     }
 }

@@ -2,9 +2,9 @@
 //!
 //! Exposes C-compatible functions for use via .NET P/Invoke (or any C FFI consumer).
 //! All returned strings are heap-allocated and must be freed with `pdtf_free_string()`.
+#![allow(clippy::not_unsafe_ptr_arg_deref)] // raw pointer deref is inside catch_unwind + unsafe blocks
 
 use std::cell::RefCell;
-use std::collections::BTreeMap;
 use std::ffi::{c_char, CStr, CString};
 use std::panic::catch_unwind;
 
@@ -43,31 +43,6 @@ unsafe fn read_c_str<'a>(ptr: *const c_char, name: &str) -> Result<&'a str, Stri
     unsafe { CStr::from_ptr(ptr) }
         .to_str()
         .map_err(|e| format!("{name} is not valid UTF-8: {e}"))
-}
-
-// ---------------------------------------------------------------------------
-// JCS (JSON Canonicalization Scheme) — mirrors the Python bindings approach
-// ---------------------------------------------------------------------------
-
-fn canonical_json(value: &serde_json::Value) -> String {
-    match value {
-        serde_json::Value::Object(map) => {
-            let mut sorted: BTreeMap<&str, String> = BTreeMap::new();
-            for (k, v) in map {
-                sorted.insert(k.as_str(), canonical_json(v));
-            }
-            let entries: Vec<String> = sorted
-                .iter()
-                .map(|(k, v)| format!("{}:{}", serde_json::to_string(k).unwrap(), v))
-                .collect();
-            format!("{{{}}}", entries.join(","))
-        }
-        serde_json::Value::Array(arr) => {
-            let items: Vec<String> = arr.iter().map(canonical_json).collect();
-            format!("[{}]", items.join(","))
-        }
-        _ => serde_json::to_string(value).unwrap(),
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -132,8 +107,7 @@ fn sign_vc_inner(vc_str: &str, sk_hex: &str) -> Result<String, String> {
     use ed25519_dalek::Signer;
     use sha2::{Digest, Sha256};
 
-    let secret_bytes =
-        hex::decode(sk_hex).map_err(|e| format!("Invalid secret key hex: {e}"))?;
+    let secret_bytes = hex::decode(sk_hex).map_err(|e| format!("Invalid secret key hex: {e}"))?;
     if secret_bytes.len() != 32 {
         return Err("Secret key must be 32 bytes".into());
     }
@@ -147,39 +121,37 @@ fn sign_vc_inner(vc_str: &str, sk_hex: &str) -> Result<String, String> {
     let mut vc: pdtf_core::types::VerifiableCredential =
         serde_json::from_str(vc_str).map_err(|e| format!("Invalid VC JSON: {e}"))?;
 
+    // Validate issuer matches signing key
+    if vc.issuer.id() != did {
+        return Err(format!(
+            "Issuer DID '{}' does not match signing key DID '{}'",
+            vc.issuer.id(),
+            did
+        ));
+    }
+
     let multibase = &did["did:key:".len()..];
     let verification_method = format!("{did}#{multibase}");
     let timestamp = vc.valid_from.clone();
 
-    // JCS-canonicalize proof options
-    let mut proof_opts = BTreeMap::new();
-    proof_opts.insert("created", serde_json::Value::String(timestamp.clone()));
-    proof_opts.insert(
-        "cryptosuite",
-        serde_json::Value::String("eddsa-jcs-2022".into()),
-    );
-    proof_opts.insert(
-        "proofPurpose",
-        serde_json::Value::String("assertionMethod".into()),
-    );
-    proof_opts.insert(
-        "type",
-        serde_json::Value::String("DataIntegrityProof".into()),
-    );
-    proof_opts.insert(
-        "verificationMethod",
-        serde_json::Value::String(verification_method.clone()),
-    );
+    // JCS-canonicalize proof options using json_canon
+    let proof_opts = serde_json::json!({
+        "type": "DataIntegrityProof",
+        "cryptosuite": "eddsa-jcs-2022",
+        "verificationMethod": verification_method,
+        "proofPurpose": "assertionMethod",
+        "created": timestamp,
+    });
 
     let canonical_proof_opts =
-        serde_json::to_string(&proof_opts).map_err(|e| e.to_string())?;
+        json_canon::to_string(&proof_opts).map_err(|e| format!("JCS error: {e}"))?;
     let proof_options_hash = Sha256::digest(canonical_proof_opts.as_bytes());
 
     let mut doc_value = serde_json::to_value(&vc).map_err(|e| e.to_string())?;
     if let Some(obj) = doc_value.as_object_mut() {
         obj.remove("proof");
     }
-    let canonical_doc = canonical_json(&doc_value);
+    let canonical_doc = json_canon::to_string(&doc_value).map_err(|e| format!("JCS error: {e}"))?;
     let document_hash = Sha256::digest(canonical_doc.as_bytes());
 
     let mut combined = Vec::with_capacity(64);
@@ -204,17 +176,13 @@ fn sign_vc_inner(vc_str: &str, sk_hex: &str) -> Result<String, String> {
 /// Verify a DataIntegrityProof on a VC.
 /// Returns 1 for valid, 0 for invalid, -1 for error.
 #[no_mangle]
-pub extern "C" fn pdtf_verify_proof(
-    vc_json: *const c_char,
-    public_key_hex: *const c_char,
-) -> i32 {
+pub extern "C" fn pdtf_verify_proof(vc_json: *const c_char, public_key_hex: *const c_char) -> i32 {
     clear_last_error();
     match catch_unwind(std::panic::AssertUnwindSafe(|| {
         let vc_str = unsafe { read_c_str(vc_json, "vc_json") }?;
         let pk_hex = unsafe { read_c_str(public_key_hex, "public_key_hex") }?;
 
-        let pk_bytes =
-            hex::decode(pk_hex).map_err(|e| format!("Invalid public key hex: {e}"))?;
+        let pk_bytes = hex::decode(pk_hex).map_err(|e| format!("Invalid public key hex: {e}"))?;
         if pk_bytes.len() != 32 {
             return Err("Public key must be 32 bytes".into());
         }
@@ -246,8 +214,7 @@ pub extern "C" fn pdtf_resolve_did_key(did: *const c_char) -> *mut c_char {
     clear_last_error();
     match catch_unwind(std::panic::AssertUnwindSafe(|| {
         let did_str = unsafe { read_c_str(did, "did") }?;
-        let doc = pdtf_core::did::did_key::resolve_did_key(did_str)
-            .map_err(|e| e.to_string())?;
+        let doc = pdtf_core::did::did_key::resolve_did_key(did_str).map_err(|e| e.to_string())?;
         serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())
     })) {
         Ok(Ok(json)) => to_c_string(&json),
@@ -328,8 +295,8 @@ pub extern "C" fn pdtf_check_status(bitstring_b64: *const c_char, index: u32) ->
     clear_last_error();
     match catch_unwind(std::panic::AssertUnwindSafe(|| {
         let bs_str = unsafe { read_c_str(bitstring_b64, "bitstring_b64") }?;
-        let decoded = pdtf_core::status::bitstring::decode_status_list(bs_str)
-            .map_err(|e| e.to_string())?;
+        let decoded =
+            pdtf_core::status::bitstring::decode_status_list(bs_str).map_err(|e| e.to_string())?;
         let set = pdtf_core::status::bitstring::get_bit(&decoded, index as usize)
             .map_err(|e| e.to_string())?;
         Ok::<i32, String>(if set { 1 } else { 0 })
@@ -397,13 +364,15 @@ mod tests {
         let did = kp["did"].as_str().unwrap();
         pdtf_free_string(kp_ptr);
 
-        let vc_json = format!(r#"{{
+        let vc_json = format!(
+            r#"{{
             "@context": ["https://www.w3.org/ns/credentials/v2"],
             "type": ["VerifiableCredential"],
             "issuer": "{did}",
             "validFrom": "2026-01-01T00:00:00Z",
             "credentialSubject": {{"id": "did:example:subject", "name": "Test"}}
-        }}"#);
+        }}"#
+        );
 
         let vc_cstr = CString::new(vc_json).unwrap();
         let sk_cstr = CString::new(sk).unwrap();
@@ -427,13 +396,15 @@ mod tests {
         let did = kp["did"].as_str().unwrap();
         pdtf_free_string(kp_ptr);
 
-        let vc_json = format!(r#"{{
+        let vc_json = format!(
+            r#"{{
             "@context": ["https://www.w3.org/ns/credentials/v2"],
             "type": ["VerifiableCredential"],
             "issuer": "{did}",
             "validFrom": "2026-01-01T00:00:00Z",
             "credentialSubject": {{"id": "did:example:subject"}}
-        }}"#);
+        }}"#
+        );
 
         let vc_cstr = CString::new(vc_json).unwrap();
         let sk_cstr = CString::new(sk).unwrap();
@@ -453,6 +424,38 @@ mod tests {
         let result = pdtf_verify_proof(signed_cstr.as_ptr(), wrong_pk_cstr.as_ptr());
         assert_eq!(result, 0, "verification with wrong key should fail");
         pdtf_free_string(signed_ptr);
+    }
+
+    #[test]
+    fn test_sign_issuer_mismatch() {
+        let kp_ptr = pdtf_generate_keypair();
+        let kp_json = unsafe { CStr::from_ptr(kp_ptr) }.to_str().unwrap();
+        let kp: serde_json::Value = serde_json::from_str(kp_json).unwrap();
+        let sk = kp["secretKeyHex"].as_str().unwrap();
+        pdtf_free_string(kp_ptr);
+
+        // Use a different DID as issuer
+        let vc_json = r#"{
+            "@context": ["https://www.w3.org/ns/credentials/v2"],
+            "type": ["VerifiableCredential"],
+            "issuer": "did:key:z6MkWrongIssuer",
+            "validFrom": "2026-01-01T00:00:00Z",
+            "credentialSubject": {"id": "did:example:subject"}
+        }"#;
+
+        let vc_cstr = CString::new(vc_json).unwrap();
+        let sk_cstr = CString::new(sk).unwrap();
+        let signed_ptr = pdtf_sign_vc(vc_cstr.as_ptr(), sk_cstr.as_ptr());
+        assert!(
+            signed_ptr.is_null(),
+            "sign_vc should fail on issuer mismatch"
+        );
+
+        let err_ptr = pdtf_last_error();
+        assert!(!err_ptr.is_null());
+        let err = unsafe { CStr::from_ptr(err_ptr) }.to_str().unwrap();
+        assert!(err.contains("does not match"), "Error: {err}");
+        pdtf_free_string(err_ptr);
     }
 
     #[test]
@@ -494,7 +497,8 @@ mod tests {
         let issuer_cstr = CString::new("did:key:z6MkTest").unwrap();
         let paths_cstr = CString::new(r#"["Property:/address"]"#).unwrap();
 
-        let result_ptr = pdtf_check_tir(reg_cstr.as_ptr(), issuer_cstr.as_ptr(), paths_cstr.as_ptr());
+        let result_ptr =
+            pdtf_check_tir(reg_cstr.as_ptr(), issuer_cstr.as_ptr(), paths_cstr.as_ptr());
         assert!(!result_ptr.is_null());
         let result_json = unsafe { CStr::from_ptr(result_ptr) }.to_str().unwrap();
         let result: serde_json::Value = serde_json::from_str(result_json).unwrap();
@@ -503,7 +507,11 @@ mod tests {
 
         // Unknown issuer
         let unknown_cstr = CString::new("did:key:z6MkUnknown").unwrap();
-        let result2_ptr = pdtf_check_tir(reg_cstr.as_ptr(), unknown_cstr.as_ptr(), paths_cstr.as_ptr());
+        let result2_ptr = pdtf_check_tir(
+            reg_cstr.as_ptr(),
+            unknown_cstr.as_ptr(),
+            paths_cstr.as_ptr(),
+        );
         assert!(!result2_ptr.is_null());
         let result2_json = unsafe { CStr::from_ptr(result2_ptr) }.to_str().unwrap();
         let result2: serde_json::Value = serde_json::from_str(result2_json).unwrap();
