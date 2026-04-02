@@ -1,0 +1,359 @@
+{
+  "generated": "2026-04-02T15:46:35.357Z",
+  "generator": "@pdtf/core v0.1.0",
+  "keys": {
+    "seed": "abababababababababababababababababababababababababababababababab",
+    "publicKeyHex": "248acbdbaf9e050196de704bea2d68770e519150d103b587dae2d9cad53dd930",
+    "secretKeyHex": "abababababababababababababababababababababababababababababababab",
+    "did": "did:key:z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK",
+    "publicKeyMultibase": "z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK"
+  },
+  "didDocument": {
+    "input": "did:key:z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK",
+    "expected": {
+      "@context": [
+        "https://www.w3.org/ns/did/v1",
+        "https://w3id.org/security/suites/ed25519-2020/v1"
+      ],
+      "id": "did:key:z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK",
+      "verificationMethod": [
+        {
+          "id": "did:key:z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK#z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK",
+          "type": "Ed25519VerificationKey2020",
+          "controller": "did:key:z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK",
+          "publicKeyMultibase": "z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK"
+        }
+      ],
+      "authentication": [
+        "did:key:z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK#z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK"
+      ],
+      "assertionMethod": [
+        "did:key:z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK#z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK"
+      ]
+    }
+  },
+  "signing": [
+    {
+      "name": "minimal-vc",
+      "description": "Minimal valid VC with single claim",
+      "unsignedVc": {
+        "@context": [
+          "https://www.w3.org/ns/credentials/v2",
+          "https://propdata.org.uk/credentials/v2"
+        ],
+        "type": [
+          "VerifiableCredential",
+          "PropertyDataCredential"
+        ],
+        "id": "urn:uuid:test-minimal-001",
+        "issuer": "did:key:z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK",
+        "validFrom": "2024-06-01T12:00:00Z",
+        "credentialSubject": {
+          "id": "urn:pdtf:uprn:100023336956",
+          "tenure": "freehold"
+        }
+      },
+      "signedVc": {
+        "@context": [
+          "https://www.w3.org/ns/credentials/v2",
+          "https://propdata.org.uk/credentials/v2"
+        ],
+        "type": [
+          "VerifiableCredential",
+          "PropertyDataCredential"
+        ],
+        "id": "urn:uuid:test-minimal-001",
+        "issuer": "did:key:z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK",
+        "validFrom": "2024-06-01T12:00:00Z",
+        "credentialSubject": {
+          "id": "urn:pdtf:uprn:100023336956",
+          "tenure": "freehold"
+        },
+        "proof": {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "verificationMethod": "did:key:z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK#z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK",
+          "proofPurpose": "assertionMethod",
+          "created": "2024-06-01T12:00:00Z",
+          "proofValue": "z3vv14hXRM26kaWYZc6WJLeyTd7jDawEFZye7tbRzUbSb95sL7xurN8qJ1vaH863Lg8uwnjkA6JgUd9AZZXNDsKQS"
+        }
+      },
+      "proofValue": "z3vv14hXRM26kaWYZc6WJLeyTd7jDawEFZye7tbRzUbSb95sL7xurN8qJ1vaH863Lg8uwnjkA6JgUd9AZZXNDsKQS"
+    },
+    {
+      "name": "vc-with-status",
+      "description": "VC with credentialStatus for revocation",
+      "unsignedVc": {
+        "@context": [
+          "https://www.w3.org/ns/credentials/v2",
+          "https://propdata.org.uk/credentials/v2"
+        ],
+        "type": [
+          "VerifiableCredential",
+          "PropertyDataCredential"
+        ],
+        "id": "urn:uuid:test-status-001",
+        "issuer": "did:key:z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK",
+        "validFrom": "2024-06-01T12:00:00Z",
+        "credentialSubject": {
+          "id": "urn:pdtf:uprn:100023336956",
+          "tenure": "leasehold"
+        },
+        "credentialStatus": {
+          "id": "https://status.propdata.org.uk/lists/1#42",
+          "type": "BitstringStatusListEntry",
+          "statusPurpose": "revocation",
+          "statusListIndex": "42",
+          "statusListCredential": "https://status.propdata.org.uk/lists/1"
+        }
+      },
+      "signedVc": {
+        "@context": [
+          "https://www.w3.org/ns/credentials/v2",
+          "https://propdata.org.uk/credentials/v2"
+        ],
+        "type": [
+          "VerifiableCredential",
+          "PropertyDataCredential"
+        ],
+        "id": "urn:uuid:test-status-001",
+        "issuer": "did:key:z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK",
+        "validFrom": "2024-06-01T12:00:00Z",
+        "credentialSubject": {
+          "id": "urn:pdtf:uprn:100023336956",
+          "tenure": "leasehold"
+        },
+        "credentialStatus": {
+          "id": "https://status.propdata.org.uk/lists/1#42",
+          "type": "BitstringStatusListEntry",
+          "statusPurpose": "revocation",
+          "statusListIndex": "42",
+          "statusListCredential": "https://status.propdata.org.uk/lists/1"
+        },
+        "proof": {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "verificationMethod": "did:key:z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK#z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK",
+          "proofPurpose": "assertionMethod",
+          "created": "2024-06-01T12:00:00Z",
+          "proofValue": "zAsjD6zKQ3zv29nTNPhuZPTGTqB7gCEifSuUQzTJdhyWUQut1PN1ZjQXbwNUxp7L7XpVtyEF9gqcVYg8r3KBrZuz"
+        }
+      },
+      "proofValue": "zAsjD6zKQ3zv29nTNPhuZPTGTqB7gCEifSuUQzTJdhyWUQut1PN1ZjQXbwNUxp7L7XpVtyEF9gqcVYg8r3KBrZuz"
+    },
+    {
+      "name": "vc-with-multiple-types",
+      "description": "VC with multiple credential types",
+      "unsignedVc": {
+        "@context": [
+          "https://www.w3.org/ns/credentials/v2",
+          "https://propdata.org.uk/credentials/v2"
+        ],
+        "type": [
+          "VerifiableCredential",
+          "PropertyDataCredential",
+          "EnergyPerformanceCertificate"
+        ],
+        "id": "urn:uuid:test-multi-001",
+        "issuer": "did:key:z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK",
+        "validFrom": "2024-06-01T12:00:00Z",
+        "credentialSubject": {
+          "id": "urn:pdtf:uprn:100023336956",
+          "currentRating": "C",
+          "potentialRating": "B"
+        }
+      },
+      "signedVc": {
+        "@context": [
+          "https://www.w3.org/ns/credentials/v2",
+          "https://propdata.org.uk/credentials/v2"
+        ],
+        "type": [
+          "VerifiableCredential",
+          "PropertyDataCredential",
+          "EnergyPerformanceCertificate"
+        ],
+        "id": "urn:uuid:test-multi-001",
+        "issuer": "did:key:z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK",
+        "validFrom": "2024-06-01T12:00:00Z",
+        "credentialSubject": {
+          "id": "urn:pdtf:uprn:100023336956",
+          "currentRating": "C",
+          "potentialRating": "B"
+        },
+        "proof": {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "verificationMethod": "did:key:z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK#z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK",
+          "proofPurpose": "assertionMethod",
+          "created": "2024-06-01T12:00:00Z",
+          "proofValue": "z2QZP4VUwNVVaPvW8Vw5drBv8FT91MiRCKvf72LCA5otKTFknjnKL4THLSXKY2y1eKqXrx72Z3zSvpfxjK9E5FbCy"
+        }
+      },
+      "proofValue": "z2QZP4VUwNVVaPvW8Vw5drBv8FT91MiRCKvf72LCA5otKTFknjnKL4THLSXKY2y1eKqXrx72Z3zSvpfxjK9E5FbCy"
+    }
+  ],
+  "verification": [
+    {
+      "name": "valid-signature",
+      "vc": {
+        "@context": [
+          "https://www.w3.org/ns/credentials/v2",
+          "https://propdata.org.uk/credentials/v2"
+        ],
+        "type": [
+          "VerifiableCredential",
+          "PropertyDataCredential"
+        ],
+        "id": "urn:uuid:test-minimal-001",
+        "issuer": "did:key:z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK",
+        "validFrom": "2024-06-01T12:00:00Z",
+        "credentialSubject": {
+          "id": "urn:pdtf:uprn:100023336956",
+          "tenure": "freehold"
+        },
+        "proof": {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "verificationMethod": "did:key:z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK#z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK",
+          "proofPurpose": "assertionMethod",
+          "created": "2024-06-01T12:00:00Z",
+          "proofValue": "z3vv14hXRM26kaWYZc6WJLeyTd7jDawEFZye7tbRzUbSb95sL7xurN8qJ1vaH863Lg8uwnjkA6JgUd9AZZXNDsKQS"
+        }
+      },
+      "publicKeyHex": "248acbdbaf9e050196de704bea2d68770e519150d103b587dae2d9cad53dd930",
+      "expectedValid": true
+    },
+    {
+      "name": "tampered-subject",
+      "vc": {
+        "@context": [
+          "https://www.w3.org/ns/credentials/v2",
+          "https://propdata.org.uk/credentials/v2"
+        ],
+        "type": [
+          "VerifiableCredential",
+          "PropertyDataCredential"
+        ],
+        "id": "urn:uuid:test-minimal-001",
+        "issuer": "did:key:z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK",
+        "validFrom": "2024-06-01T12:00:00Z",
+        "credentialSubject": {
+          "id": "urn:pdtf:uprn:100023336956",
+          "tenure": "leasehold"
+        },
+        "proof": {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "verificationMethod": "did:key:z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK#z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK",
+          "proofPurpose": "assertionMethod",
+          "created": "2024-06-01T12:00:00Z",
+          "proofValue": "z3vv14hXRM26kaWYZc6WJLeyTd7jDawEFZye7tbRzUbSb95sL7xurN8qJ1vaH863Lg8uwnjkA6JgUd9AZZXNDsKQS"
+        }
+      },
+      "publicKeyHex": "248acbdbaf9e050196de704bea2d68770e519150d103b587dae2d9cad53dd930",
+      "expectedValid": false
+    },
+    {
+      "name": "wrong-key",
+      "vc": {
+        "@context": [
+          "https://www.w3.org/ns/credentials/v2",
+          "https://propdata.org.uk/credentials/v2"
+        ],
+        "type": [
+          "VerifiableCredential",
+          "PropertyDataCredential"
+        ],
+        "id": "urn:uuid:test-minimal-001",
+        "issuer": "did:key:z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK",
+        "validFrom": "2024-06-01T12:00:00Z",
+        "credentialSubject": {
+          "id": "urn:pdtf:uprn:100023336956",
+          "tenure": "freehold"
+        },
+        "proof": {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "verificationMethod": "did:key:z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK#z6MkguuUVNj72BEqpY3qHikwFtSCiUWgDGbwiX8pqu5uh3gK",
+          "proofPurpose": "assertionMethod",
+          "created": "2024-06-01T12:00:00Z",
+          "proofValue": "z3vv14hXRM26kaWYZc6WJLeyTd7jDawEFZye7tbRzUbSb95sL7xurN8qJ1vaH863Lg8uwnjkA6JgUd9AZZXNDsKQS"
+        }
+      },
+      "publicKeyHex": "fc947730f49eb01427a66e050733294d9e520e545c7a27125a780634e0860a27",
+      "expectedValid": false
+    }
+  ],
+  "statusList": {
+    "size": 131072,
+    "emptyBitstring": "H4sIAAAAAAAAA+3BMQEAAADCoPVPbQwfoAAAAAAAAAAAAAAAAAAAAIC3AYbSVKsAQAAA",
+    "operations": [
+      {
+        "action": "set",
+        "index": 0,
+        "bitstringAfter": "H4sIAAAAAAAAA+3BIQEAAAACIKc73RkWoAEAAAAAAAAAAAAAAAAAAADeBuRZQ2cAQAAA"
+      },
+      {
+        "action": "set",
+        "index": 42,
+        "bitstringAfter": "H4sIAAAAAAAAA+3BMQEAAAjAoEUxqtGN4QNs1QQAAAAAAAAAAAAAAAAAAAA8OlER+vwAQAAA"
+      },
+      {
+        "action": "set",
+        "index": 131071,
+        "bitstringAfter": "H4sIAAAAAAAAA+3BQQEAMAgAobPJohrdGPsAW/UCAAAAAAAAAAAAAAAAAAAA/pkDxyH9iwBAAAA="
+      },
+      {
+        "action": "check",
+        "index": 0,
+        "bitstring": "H4sIAAAAAAAAA+3BQQEAMAgAobPJohrdGPsAW/UCAAAAAAAAAAAAAAAAAAAA/pkDxyH9iwBAAAA=",
+        "expected": true
+      },
+      {
+        "action": "check",
+        "index": 1,
+        "bitstring": "H4sIAAAAAAAAA+3BQQEAMAgAobPJohrdGPsAW/UCAAAAAAAAAAAAAAAAAAAA/pkDxyH9iwBAAAA=",
+        "expected": false
+      },
+      {
+        "action": "check",
+        "index": 42,
+        "bitstring": "H4sIAAAAAAAAA+3BQQEAMAgAobPJohrdGPsAW/UCAAAAAAAAAAAAAAAAAAAA/pkDxyH9iwBAAAA=",
+        "expected": true
+      }
+    ]
+  },
+  "tirPathMatching": [
+    {
+      "pattern": "Property:/energyEfficiency/certificate",
+      "path": "Property:/energyEfficiency/certificate",
+      "expected": true
+    },
+    {
+      "pattern": "Property:/energyEfficiency/*",
+      "path": "Property:/energyEfficiency/certificate",
+      "expected": true
+    },
+    {
+      "pattern": "Property:/energyEfficiency/*",
+      "path": "Property:/energyEfficiency",
+      "expected": false
+    },
+    {
+      "pattern": "Property:*",
+      "path": "Property:/energyEfficiency/certificate",
+      "expected": true
+    },
+    {
+      "pattern": "Title:/registerExtract/*",
+      "path": "Property:/energyEfficiency/certificate",
+      "expected": false
+    },
+    {
+      "pattern": "Property:/energyEfficiency/certificate",
+      "path": "Property:/energyEfficiency/rating",
+      "expected": false
+    }
+  ]
+}
