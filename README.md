@@ -1,6 +1,6 @@
 # core-rs
 
-PDTF 2.0 core library — Rust implementation with Python bindings.
+PDTF 2.0 core library — Rust implementation with Python and C#/.NET bindings.
 
 Cryptographic core for the [Property Data Trust Framework](https://propdata.org.uk) v2.0.
 
@@ -13,6 +13,7 @@ Cryptographic core for the [Property Data Trust Framework](https://propdata.org.
 - **Trusted Issuer Registry (TIR)** — path-based issuer authorisation
 - **VC builder & validator** — 4-stage verification pipeline
 - **Python bindings** via PyO3/maturin
+- **C#/.NET bindings** via P/Invoke FFI (targets .NET 8.0)
 
 ## Rust Usage
 
