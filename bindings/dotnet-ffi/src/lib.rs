@@ -251,7 +251,7 @@ pub extern "C" fn pdtf_check_tir(
         let paths: Vec<String> =
             serde_json::from_str(paths_str).map_err(|e| format!("Invalid paths JSON: {e}"))?;
 
-        let result = pdtf_core::tir::verify::verify_tir(&registry, issuer_str, &paths);
+        let result = pdtf_core::federation::verify::verify_tir(&registry, issuer_str, &paths);
         serde_json::to_string_pretty(&result).map_err(|e| e.to_string())
     })) {
         Ok(Ok(json)) => to_c_string(&json),

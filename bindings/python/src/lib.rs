@@ -132,7 +132,7 @@ fn check_tir(registry_json: &str, issuer_did: &str, paths: Vec<String>) -> PyRes
         serde_json::from_str(registry_json).map_err(|e| {
             pyo3::exceptions::PyValueError::new_err(format!("Invalid registry JSON: {e}"))
         })?;
-    let result = ::pdtf_core::tir::verify::verify_tir(&registry, issuer_did, &paths);
+    let result = ::pdtf_core::federation::verify::verify_tir(&registry, issuer_did, &paths);
     serde_json::to_string_pretty(&result)
         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
 }

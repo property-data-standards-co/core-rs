@@ -7,12 +7,14 @@
 
 use crate::did::resolver::DidResolver;
 use crate::error::{PdtfError, Result};
+use crate::federation::verify::{verify_tir, verify_trust_coverage};
+use crate::federation::TrustResolver;
 use crate::signer::proof::verify_proof;
 use crate::status::bitstring::{decode_status_list, get_bit};
-use crate::tir::verify::verify_tir;
 use crate::types::*;
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// Required W3C VC v2 context URI.
 const W3C_VC_V2_CONTEXT: &str = "https://www.w3.org/ns/credentials/v2";
@@ -36,8 +38,12 @@ pub struct VcVerificationResult {
 pub struct VerifyVcOptions<'a> {
     pub vc: &'a VerifiableCredential,
     pub resolver: &'a DidResolver,
-    /// TIR registry for authorisation check. If None, TIR check is skipped.
+    /// TIR registry for authorisation check (legacy). If None, TIR check is skipped
+    /// unless `trust_resolver` is provided.
     pub tir_registry: Option<&'a TirRegistry>,
+    /// Trust resolver for federation-based authorisation check.
+    /// Takes precedence over `tir_registry` when both are set.
+    pub trust_resolver: Option<Arc<dyn TrustResolver>>,
     /// Claimed entity:path list for TIR verification.
     pub claimed_paths: Vec<String>,
     /// Pre-fetched status list encoded bitstring. If None and credential has status, validation fails (fail-closed).
@@ -76,8 +82,21 @@ pub async fn verify_vc(options: VerifyVcOptions<'_>) -> VcVerificationResult {
         }
     }
 
-    // Stage 3: TIR check (fail-closed: untrusted issuer fails validation)
-    if let Some(registry) = options.tir_registry {
+    // Stage 3: Trust check (fail-closed: untrusted issuer fails validation)
+    // Prefer trust_resolver over legacy tir_registry when both are set.
+    if let Some(ref trust_resolver) = options.trust_resolver {
+        let resolution = trust_resolver
+            .resolve_trust(options.vc.issuer.id(), None)
+            .await;
+        let tir_result = verify_trust_coverage(&resolution, &options.claimed_paths);
+        if !tir_result.trusted {
+            result.errors.push(format!(
+                "Trust: issuer not authorised. Uncovered: {:?}",
+                tir_result.uncovered_paths
+            ));
+        }
+        result.tir_result = Some(tir_result);
+    } else if let Some(registry) = options.tir_registry {
         let tir_result = verify_tir(registry, options.vc.issuer.id(), &options.claimed_paths);
         if !tir_result.trusted {
             result.errors.push(format!(
@@ -378,6 +397,7 @@ mod tests {
             vc: &vc,
             resolver: &resolver,
             tir_registry: None,
+            trust_resolver: None,
             claimed_paths: vec![],
             status_list_bitstring: None,
         })
@@ -398,6 +418,7 @@ mod tests {
             vc: &vc,
             resolver: &resolver,
             tir_registry: None,
+            trust_resolver: None,
             claimed_paths: vec![],
             status_list_bitstring: None,
         })
@@ -441,6 +462,7 @@ mod tests {
             vc: &vc,
             resolver: &resolver,
             tir_registry: Some(&registry),
+            trust_resolver: None,
             claimed_paths: vec!["Property:/tenure".to_string()],
             status_list_bitstring: None,
         })
@@ -467,6 +489,7 @@ mod tests {
             vc: &vc,
             resolver: &resolver,
             tir_registry: Some(&registry),
+            trust_resolver: None,
             claimed_paths: vec!["Property:/tenure".to_string()],
             status_list_bitstring: None,
         })
@@ -518,6 +541,7 @@ mod tests {
             vc: &vc,
             resolver: &resolver,
             tir_registry: None,
+            trust_resolver: None,
             claimed_paths: vec![],
             status_list_bitstring: None,
         })
@@ -571,6 +595,7 @@ mod tests {
             vc: &vc,
             resolver: &resolver,
             tir_registry: None,
+            trust_resolver: None,
             claimed_paths: vec![],
             status_list_bitstring: Some(&encoded),
         })
@@ -614,6 +639,7 @@ mod tests {
             vc: &vc,
             resolver: &resolver,
             tir_registry: None,
+            trust_resolver: None,
             claimed_paths: vec![],
             status_list_bitstring: None,
         })
@@ -640,6 +666,7 @@ mod tests {
             vc: &vc,
             resolver: &resolver,
             tir_registry: None,
+            trust_resolver: None,
             claimed_paths: vec![],
             status_list_bitstring: None,
         })
@@ -683,6 +710,7 @@ mod tests {
             vc: &vc,
             resolver: &resolver,
             tir_registry: None,
+            trust_resolver: None,
             claimed_paths: vec![],
             status_list_bitstring: None,
         })
@@ -725,6 +753,7 @@ mod tests {
             vc: &vc,
             resolver: &resolver,
             tir_registry: None,
+            trust_resolver: None,
             claimed_paths: vec![],
             status_list_bitstring: None,
         })
@@ -747,6 +776,7 @@ mod tests {
             vc: &vc,
             resolver: &resolver,
             tir_registry: None,
+            trust_resolver: None,
             claimed_paths: vec![],
             status_list_bitstring: None,
         })
@@ -770,6 +800,7 @@ mod tests {
             vc: &vc,
             resolver: &resolver,
             tir_registry: None,
+            trust_resolver: None,
             claimed_paths: vec![],
             status_list_bitstring: None,
         })

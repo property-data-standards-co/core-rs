@@ -313,7 +313,7 @@ pub struct TirRegistry {
     pub user_account_providers: HashMap<String, TirAccountProvider>,
 }
 
-/// Result of TIR verification.
+/// Result of TIR verification (legacy path-coverage check).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TirVerificationResult {
     pub trusted: bool,
@@ -322,6 +322,35 @@ pub struct TirVerificationResult {
     pub status: Option<IssuerStatus>,
     pub paths_covered: Vec<String>,
     pub uncovered_paths: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
+// ─── Federation / Trust Resolution ──────────────────────────────────────────
+
+/// A trust mark representing an issuer's authorisation scope.
+///
+/// In the bootstrap model this maps 1:1 to a TIR issuer entry.
+/// In OpenID Federation this will be derived from verified trust mark JWTs.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrustMark {
+    /// The trust level granted by this mark.
+    #[serde(rename = "trustLevel")]
+    pub trust_level: TrustLevel,
+    /// Entity:path patterns this mark authorises.
+    #[serde(rename = "authorisedPaths")]
+    pub authorised_paths: Vec<String>,
+}
+
+/// Result of trust resolution from any `TrustResolver` implementation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrustResolutionResult {
+    /// Whether the issuer is trusted (active, valid, resolvable).
+    pub trusted: bool,
+    /// Issuer slug/identifier, if known.
+    pub issuer_slug: Option<String>,
+    /// Trust marks collected during resolution.
+    pub trust_marks: Vec<TrustMark>,
+    /// Warnings encountered during resolution.
     pub warnings: Vec<String>,
 }
 

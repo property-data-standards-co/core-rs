@@ -51,6 +51,8 @@ pub mod error;
 pub mod keys;
 pub mod signer;
 pub mod status;
+pub mod federation;
+#[deprecated(since = "0.2.0", note = "Use the `federation` module instead")]
 pub mod tir;
 pub mod types;
 pub mod validator;
