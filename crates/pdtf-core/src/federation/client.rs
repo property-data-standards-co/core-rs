@@ -1,24 +1,24 @@
-//! Bootstrap Trust Resolver — fetches and caches a static JSON registry.
+//! Federation Registry Resolver — fetches and caches a static JSON registry.
 //!
-//! This is the legacy TIR approach wrapped in the `TrustResolver` trait.
-//! Default source: `tir.moverly.com/v1/registry`.
+//! This is the bootstrap approach wrapped in the `TrustResolver` trait.
+//! Default source: `registry.propdata.org.uk/v1/federation`.
 
 use async_trait::async_trait;
 
 use crate::error::{PdtfError, Result};
 use crate::federation::TrustResolver;
 use crate::types::{
-    IssuerStatus, TirAccountProvider, TirIssuerEntry, TirRegistry, TrustMark,
+    FederationAccountProvider, FederationIssuerEntry, FederationRegistry, IssuerStatus, TrustMark,
     TrustResolutionResult,
 };
 use std::sync::Mutex;
 
-/// Bootstrap trust resolver backed by an in-memory JSON registry cache.
-pub struct BootstrapTrustResolver {
-    cached: Mutex<Option<TirRegistry>>,
+/// Federation registry resolver backed by an in-memory JSON registry cache.
+pub struct FederationRegistryResolver {
+    cached: Mutex<Option<FederationRegistry>>,
 }
 
-impl BootstrapTrustResolver {
+impl FederationRegistryResolver {
     /// Create a new empty resolver.
     pub fn new() -> Self {
         Self {
@@ -27,26 +27,26 @@ impl BootstrapTrustResolver {
     }
 
     /// Create a resolver pre-loaded with a registry (useful for testing).
-    pub fn with_registry(registry: TirRegistry) -> Self {
+    pub fn with_registry(registry: FederationRegistry) -> Self {
         Self {
             cached: Mutex::new(Some(registry)),
         }
     }
 
     /// Load a registry from a JSON string.
-    pub fn load_from_json(&self, json: &str) -> Result<TirRegistry> {
-        let registry: TirRegistry = serde_json::from_str(json)?;
+    pub fn load_from_json(&self, json: &str) -> Result<FederationRegistry> {
+        let registry: FederationRegistry = serde_json::from_str(json)?;
         *self
             .cached
             .lock()
-            .map_err(|_| PdtfError::TirError("TIR cache lock poisoned".into()))? =
+            .map_err(|_| PdtfError::FederationError("Registry cache lock poisoned".into()))? =
             Some(registry.clone());
         Ok(registry)
     }
 
     /// Fetch registry from a URL.
     #[cfg(feature = "network")]
-    pub async fn fetch(&self, url: &str) -> Result<TirRegistry> {
+    pub async fn fetch(&self, url: &str) -> Result<FederationRegistry> {
         let client = reqwest::Client::new();
         let response = client
             .get(url)
@@ -54,45 +54,45 @@ impl BootstrapTrustResolver {
             .timeout(std::time::Duration::from_secs(10))
             .send()
             .await
-            .map_err(|e| PdtfError::TirError(format!("Failed to fetch TIR: {e}")))?;
+            .map_err(|e| PdtfError::FederationError(format!("Failed to fetch registry: {e}")))?;
 
         if !response.status().is_success() {
-            return Err(PdtfError::TirError(format!(
-                "TIR fetch failed: HTTP {}",
+            return Err(PdtfError::FederationError(format!(
+                "Registry fetch failed: HTTP {}",
                 response.status()
             )));
         }
 
-        let registry: TirRegistry = response
+        let registry: FederationRegistry = response
             .json()
             .await
-            .map_err(|e| PdtfError::TirError(format!("Invalid TIR JSON: {e}")))?;
+            .map_err(|e| PdtfError::FederationError(format!("Invalid registry JSON: {e}")))?;
 
         *self
             .cached
             .lock()
-            .map_err(|_| PdtfError::TirError("TIR cache lock poisoned".into()))? =
+            .map_err(|_| PdtfError::FederationError("Registry cache lock poisoned".into()))? =
             Some(registry.clone());
         Ok(registry)
     }
 
-    /// Get the current TIR registry.
-    pub async fn get_registry(&self) -> Result<TirRegistry> {
+    /// Get the current federation registry.
+    pub async fn get_registry(&self) -> Result<FederationRegistry> {
         let cached = self
             .cached
             .lock()
-            .map_err(|_| PdtfError::TirError("TIR cache lock poisoned".into()))?
+            .map_err(|_| PdtfError::FederationError("Registry cache lock poisoned".into()))?
             .clone();
         match cached {
             Some(reg) => Ok(reg),
-            None => Err(PdtfError::TirError(
-                "No TIR registry loaded. Call load_from_json() or fetch() first.".into(),
+            None => Err(PdtfError::FederationError(
+                "No federation registry loaded. Call load_from_json() or fetch() first.".into(),
             )),
         }
     }
 
     /// Look up an issuer by DID.
-    pub async fn find_issuer_by_did(&self, did: &str) -> Result<Option<(String, TirIssuerEntry)>> {
+    pub async fn find_issuer_by_did(&self, did: &str) -> Result<Option<(String, FederationIssuerEntry)>> {
         let registry = self.get_registry().await?;
         for (slug, entry) in &registry.issuers {
             if entry.did == did {
@@ -106,7 +106,7 @@ impl BootstrapTrustResolver {
     pub async fn find_account_provider_by_did(
         &self,
         did: &str,
-    ) -> Result<Option<(String, TirAccountProvider)>> {
+    ) -> Result<Option<(String, FederationAccountProvider)>> {
         let registry = self.get_registry().await?;
         for (slug, entry) in &registry.user_account_providers {
             if entry.did == did {
@@ -117,7 +117,7 @@ impl BootstrapTrustResolver {
     }
 
     /// Get the cached registry, if any.
-    pub fn get_cached(&self) -> Option<TirRegistry> {
+    pub fn get_cached(&self) -> Option<FederationRegistry> {
         self.cached.lock().ok()?.clone()
     }
 
@@ -129,14 +129,14 @@ impl BootstrapTrustResolver {
     }
 }
 
-impl Default for BootstrapTrustResolver {
+impl Default for FederationRegistryResolver {
     fn default() -> Self {
         Self::new()
     }
 }
 
 #[async_trait]
-impl TrustResolver for BootstrapTrustResolver {
+impl TrustResolver for FederationRegistryResolver {
     async fn resolve_trust(
         &self,
         issuer_did: &str,
@@ -264,11 +264,11 @@ mod tests {
     use crate::types::*;
     use std::collections::HashMap;
 
-    fn sample_registry() -> TirRegistry {
+    fn sample_registry() -> FederationRegistry {
         let mut issuers = HashMap::new();
         issuers.insert(
             "moverly-epc".to_string(),
-            TirIssuerEntry {
+            FederationIssuerEntry {
                 slug: "moverly-epc".to_string(),
                 did: "did:web:epc.moverly.com".to_string(),
                 name: "Moverly EPC Adapter".to_string(),
@@ -283,7 +283,7 @@ mod tests {
             },
         );
 
-        TirRegistry {
+        FederationRegistry {
             version: "1.0".to_string(),
             last_updated: "2024-01-01T00:00:00Z".to_string(),
             issuers,
@@ -293,14 +293,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_with_registry() {
-        let resolver = BootstrapTrustResolver::with_registry(sample_registry());
+        let resolver = FederationRegistryResolver::with_registry(sample_registry());
         let reg = resolver.get_registry().await.unwrap();
         assert_eq!(reg.version, "1.0");
     }
 
     #[tokio::test]
     async fn test_find_issuer_by_did() {
-        let resolver = BootstrapTrustResolver::with_registry(sample_registry());
+        let resolver = FederationRegistryResolver::with_registry(sample_registry());
         let result = resolver
             .find_issuer_by_did("did:web:epc.moverly.com")
             .await
@@ -312,7 +312,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_issuer_not_found() {
-        let resolver = BootstrapTrustResolver::with_registry(sample_registry());
+        let resolver = FederationRegistryResolver::with_registry(sample_registry());
         let result = resolver
             .find_issuer_by_did("did:web:unknown.com")
             .await
@@ -322,14 +322,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_no_registry_loaded() {
-        let resolver = BootstrapTrustResolver::new();
+        let resolver = FederationRegistryResolver::new();
         assert!(resolver.get_registry().await.is_err());
     }
 
     #[test]
     fn test_load_from_json() {
         let json = serde_json::to_string(&sample_registry()).unwrap();
-        let resolver = BootstrapTrustResolver::new();
+        let resolver = FederationRegistryResolver::new();
         let reg = resolver.load_from_json(&json).unwrap();
         assert_eq!(reg.version, "1.0");
         assert!(resolver.get_cached().is_some());
@@ -337,7 +337,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_resolve_trust_active_issuer() {
-        let resolver = BootstrapTrustResolver::with_registry(sample_registry());
+        let resolver = FederationRegistryResolver::with_registry(sample_registry());
         let result = resolver
             .resolve_trust("did:web:epc.moverly.com", None)
             .await;
@@ -349,7 +349,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_resolve_trust_unknown_issuer() {
-        let resolver = BootstrapTrustResolver::with_registry(sample_registry());
+        let resolver = FederationRegistryResolver::with_registry(sample_registry());
         let result = resolver.resolve_trust("did:web:unknown.com", None).await;
         assert!(!result.trusted);
         assert!(result.issuer_slug.is_none());

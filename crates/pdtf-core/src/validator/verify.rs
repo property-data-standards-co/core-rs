@@ -2,12 +2,12 @@
 //!
 //! 1. Structure check — required fields, valid types, proof type/cryptosuite
 //! 2. Signature verification — resolve DID → issuer binding → assertionMethod → verify_proof
-//! 3. TIR check — issuer authorised for claimed paths
+//! 3. Trust check — issuer authorised for claimed paths via federation trust resolution
 //! 4. Status check — credential not revoked
 
 use crate::did::resolver::DidResolver;
 use crate::error::{PdtfError, Result};
-use crate::federation::verify::{verify_tir, verify_trust_coverage};
+use crate::federation::verify::verify_trust_coverage;
 use crate::federation::TrustResolver;
 use crate::signer::proof::verify_proof;
 use crate::status::bitstring::{decode_status_list, get_bit};
@@ -28,7 +28,7 @@ pub struct VcVerificationResult {
     pub valid: bool,
     pub structure_ok: bool,
     pub signature_ok: bool,
-    pub tir_result: Option<TirVerificationResult>,
+    pub trust_result: Option<TrustVerificationResult>,
     pub status_ok: Option<bool>,
     pub errors: Vec<String>,
     pub warnings: Vec<String>,
@@ -38,13 +38,10 @@ pub struct VcVerificationResult {
 pub struct VerifyVcOptions<'a> {
     pub vc: &'a VerifiableCredential,
     pub resolver: &'a DidResolver,
-    /// TIR registry for authorisation check (legacy). If None, TIR check is skipped
-    /// unless `trust_resolver` is provided.
-    pub tir_registry: Option<&'a TirRegistry>,
     /// Trust resolver for federation-based authorisation check.
-    /// Takes precedence over `tir_registry` when both are set.
+    /// If None, trust check is skipped.
     pub trust_resolver: Option<Arc<dyn TrustResolver>>,
-    /// Claimed entity:path list for TIR verification.
+    /// Claimed entity:path list for trust verification.
     pub claimed_paths: Vec<String>,
     /// Pre-fetched status list encoded bitstring. If None and credential has status, validation fails (fail-closed).
     pub status_list_bitstring: Option<&'a str>,
@@ -56,7 +53,7 @@ pub async fn verify_vc(options: VerifyVcOptions<'_>) -> VcVerificationResult {
         valid: false,
         structure_ok: false,
         signature_ok: false,
-        tir_result: None,
+        trust_result: None,
         status_ok: None,
         errors: vec![],
         warnings: vec![],
@@ -83,28 +80,18 @@ pub async fn verify_vc(options: VerifyVcOptions<'_>) -> VcVerificationResult {
     }
 
     // Stage 3: Trust check (fail-closed: untrusted issuer fails validation)
-    // Prefer trust_resolver over legacy tir_registry when both are set.
     if let Some(ref trust_resolver) = options.trust_resolver {
         let resolution = trust_resolver
             .resolve_trust(options.vc.issuer.id(), None)
             .await;
-        let tir_result = verify_trust_coverage(&resolution, &options.claimed_paths);
-        if !tir_result.trusted {
+        let trust_result = verify_trust_coverage(&resolution, &options.claimed_paths);
+        if !trust_result.trusted {
             result.errors.push(format!(
                 "Trust: issuer not authorised. Uncovered: {:?}",
-                tir_result.uncovered_paths
+                trust_result.uncovered_paths
             ));
         }
-        result.tir_result = Some(tir_result);
-    } else if let Some(registry) = options.tir_registry {
-        let tir_result = verify_tir(registry, options.vc.issuer.id(), &options.claimed_paths);
-        if !tir_result.trusted {
-            result.errors.push(format!(
-                "TIR: issuer not authorised. Uncovered: {:?}",
-                tir_result.uncovered_paths
-            ));
-        }
-        result.tir_result = Some(tir_result);
+        result.trust_result = Some(trust_result);
     }
 
     // Stage 4: Status check (fail-closed: missing bitstring fails validation)
@@ -396,7 +383,6 @@ mod tests {
         let result = verify_vc(VerifyVcOptions {
             vc: &vc,
             resolver: &resolver,
-            tir_registry: None,
             trust_resolver: None,
             claimed_paths: vec![],
             status_list_bitstring: None,
@@ -417,7 +403,6 @@ mod tests {
         let result = verify_vc(VerifyVcOptions {
             vc: &vc,
             resolver: &resolver,
-            tir_registry: None,
             trust_resolver: None,
             claimed_paths: vec![],
             status_list_bitstring: None,
@@ -429,14 +414,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_verify_with_tir() {
+    async fn test_verify_with_trust_resolver() {
         let (vc, _provider) = make_signed_vc().await;
         let resolver = DidResolver::default();
 
         let mut issuers = HashMap::new();
         issuers.insert(
             "test".to_string(),
-            TirIssuerEntry {
+            FederationIssuerEntry {
                 slug: "test".to_string(),
                 did: vc.issuer.id().to_string(),
                 name: "Test".to_string(),
@@ -451,7 +436,7 @@ mod tests {
             },
         );
 
-        let registry = TirRegistry {
+        let registry = FederationRegistry {
             version: "1.0.0".to_string(),
             last_updated: "2024-01-01T00:00:00Z".to_string(),
             issuers,
@@ -461,24 +446,23 @@ mod tests {
         let result = verify_vc(VerifyVcOptions {
             vc: &vc,
             resolver: &resolver,
-            tir_registry: Some(&registry),
-            trust_resolver: None,
+            trust_resolver: Some(Arc::new(crate::federation::FederationRegistryResolver::with_registry(registry.clone()))),
             claimed_paths: vec!["Property:/tenure".to_string()],
             status_list_bitstring: None,
         })
         .await;
 
         assert!(result.valid);
-        assert!(result.tir_result.as_ref().unwrap().trusted);
+        assert!(result.trust_result.as_ref().unwrap().trusted);
     }
 
     #[tokio::test]
-    async fn test_verify_tir_failure_fails_validation() {
+    async fn test_verify_trust_failure_fails_validation() {
         let (vc, _provider) = make_signed_vc().await;
         let resolver = DidResolver::default();
 
         // Registry with a different issuer — vc's issuer won't be found
-        let registry = TirRegistry {
+        let registry = FederationRegistry {
             version: "1.0.0".to_string(),
             last_updated: "2024-01-01T00:00:00Z".to_string(),
             issuers: HashMap::new(),
@@ -488,15 +472,14 @@ mod tests {
         let result = verify_vc(VerifyVcOptions {
             vc: &vc,
             resolver: &resolver,
-            tir_registry: Some(&registry),
-            trust_resolver: None,
+            trust_resolver: Some(Arc::new(crate::federation::FederationRegistryResolver::with_registry(registry.clone()))),
             claimed_paths: vec!["Property:/tenure".to_string()],
             status_list_bitstring: None,
         })
         .await;
 
-        assert!(!result.valid, "TIR failure should fail overall validation");
-        assert!(result.errors.iter().any(|e| e.contains("TIR")));
+        assert!(!result.valid, "Trust failure should fail overall validation");
+        assert!(result.errors.iter().any(|e| e.contains("Trust")));
     }
 
     #[tokio::test]
@@ -540,7 +523,6 @@ mod tests {
         let result = verify_vc(VerifyVcOptions {
             vc: &vc,
             resolver: &resolver,
-            tir_registry: None,
             trust_resolver: None,
             claimed_paths: vec![],
             status_list_bitstring: None,
@@ -594,7 +576,6 @@ mod tests {
         let result = verify_vc(VerifyVcOptions {
             vc: &vc,
             resolver: &resolver,
-            tir_registry: None,
             trust_resolver: None,
             claimed_paths: vec![],
             status_list_bitstring: Some(&encoded),
@@ -638,7 +619,6 @@ mod tests {
         let result = verify_vc(VerifyVcOptions {
             vc: &vc,
             resolver: &resolver,
-            tir_registry: None,
             trust_resolver: None,
             claimed_paths: vec![],
             status_list_bitstring: None,
@@ -665,7 +645,6 @@ mod tests {
         let result = verify_vc(VerifyVcOptions {
             vc: &vc,
             resolver: &resolver,
-            tir_registry: None,
             trust_resolver: None,
             claimed_paths: vec![],
             status_list_bitstring: None,
@@ -709,7 +688,6 @@ mod tests {
         let result = verify_vc(VerifyVcOptions {
             vc: &vc,
             resolver: &resolver,
-            tir_registry: None,
             trust_resolver: None,
             claimed_paths: vec![],
             status_list_bitstring: None,
@@ -752,7 +730,6 @@ mod tests {
         let result = verify_vc(VerifyVcOptions {
             vc: &vc,
             resolver: &resolver,
-            tir_registry: None,
             trust_resolver: None,
             claimed_paths: vec![],
             status_list_bitstring: None,
@@ -775,7 +752,6 @@ mod tests {
         let result = verify_vc(VerifyVcOptions {
             vc: &vc,
             resolver: &resolver,
-            tir_registry: None,
             trust_resolver: None,
             claimed_paths: vec![],
             status_list_bitstring: None,
@@ -799,7 +775,6 @@ mod tests {
         let result = verify_vc(VerifyVcOptions {
             vc: &vc,
             resolver: &resolver,
-            tir_registry: None,
             trust_resolver: None,
             claimed_paths: vec![],
             status_list_bitstring: None,

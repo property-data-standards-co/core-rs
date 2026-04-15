@@ -2,7 +2,7 @@
 name = "pdtf-core"
 version = "0.1.0"
 edition = "2021"
-description = "PDTF 2.0 cryptographic core — Ed25519 signing/verification, DIDs, VCs, Bitstring Status List, TIR"
+description = "PDTF 2.0 cryptographic core — Ed25519 signing/verification, DIDs, VCs, Bitstring Status List, Federation Trust Registry"
 license = "MIT"
 authors = ["Ed Molyneux <ed@moverly.com>"]
 repository = "https://github.com/property-data-standards-co/core-rs"

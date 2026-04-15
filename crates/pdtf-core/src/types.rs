@@ -237,7 +237,7 @@ pub struct KeyRecord {
     pub rotated_at: Option<String>,
 }
 
-// ─── TIR ────────────────────────────────────────────────────────────────────
+// ─── Federation Registry ────────────────────────────────────────────────────
 
 /// Trust level for an issuer.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -258,9 +258,9 @@ pub enum IssuerStatus {
     Planned,
 }
 
-/// TIR issuer entry.
+/// Federation issuer entry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TirIssuerEntry {
+pub struct FederationIssuerEntry {
     pub slug: String,
     pub did: String,
     pub name: String,
@@ -284,9 +284,9 @@ pub struct TirIssuerEntry {
     pub extra: HashMap<String, serde_json::Value>,
 }
 
-/// TIR account provider entry.
+/// Federation account provider entry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TirAccountProvider {
+pub struct FederationAccountProvider {
     pub slug: String,
     pub did: String,
     pub name: String,
@@ -302,34 +302,22 @@ pub struct TirAccountProvider {
     pub extra: HashMap<String, serde_json::Value>,
 }
 
-/// Complete TIR registry.
+/// Complete federation registry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TirRegistry {
+pub struct FederationRegistry {
     pub version: String,
     #[serde(rename = "lastUpdated")]
     pub last_updated: String,
-    pub issuers: HashMap<String, TirIssuerEntry>,
+    pub issuers: HashMap<String, FederationIssuerEntry>,
     #[serde(rename = "userAccountProviders")]
-    pub user_account_providers: HashMap<String, TirAccountProvider>,
-}
-
-/// Result of TIR verification (legacy path-coverage check).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TirVerificationResult {
-    pub trusted: bool,
-    pub issuer_slug: Option<String>,
-    pub trust_level: Option<TrustLevel>,
-    pub status: Option<IssuerStatus>,
-    pub paths_covered: Vec<String>,
-    pub uncovered_paths: Vec<String>,
-    pub warnings: Vec<String>,
+    pub user_account_providers: HashMap<String, FederationAccountProvider>,
 }
 
 // ─── Federation / Trust Resolution ──────────────────────────────────────────
 
 /// A trust mark representing an issuer's authorisation scope.
 ///
-/// In the bootstrap model this maps 1:1 to a TIR issuer entry.
+/// In the bootstrap model this maps 1:1 to a federation registry issuer entry.
 /// In OpenID Federation this will be derived from verified trust mark JWTs.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrustMark {
@@ -351,6 +339,18 @@ pub struct TrustResolutionResult {
     /// Trust marks collected during resolution.
     pub trust_marks: Vec<TrustMark>,
     /// Warnings encountered during resolution.
+    pub warnings: Vec<String>,
+}
+
+/// Result of trust verification — path coverage check against a resolved trust result.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrustVerificationResult {
+    pub trusted: bool,
+    pub issuer_slug: Option<String>,
+    pub trust_level: Option<TrustLevel>,
+    pub status: Option<IssuerStatus>,
+    pub paths_covered: Vec<String>,
+    pub uncovered_paths: Vec<String>,
     pub warnings: Vec<String>,
 }
 

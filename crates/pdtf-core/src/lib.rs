@@ -2,12 +2,12 @@
 //!
 //! PDTF 2.0 cryptographic core library — Ed25519 signing/verification,
 //! DID resolution, Verifiable Credentials, Bitstring Status List, and
-//! Trusted Issuer Registry.
+//! Federation Trust Registry.
 //!
 //! ## Features
 //!
 //! - **`network`** (default) — enables HTTP-based did:web resolution,
-//!   status list checking, and TIR registry fetching via `reqwest`.
+//!   status list checking, and federation registry fetching via `reqwest`.
 //!
 //! ## Quick Start
 //!
@@ -52,8 +52,6 @@ pub mod keys;
 pub mod signer;
 pub mod status;
 pub mod federation;
-#[deprecated(since = "0.2.0", note = "Use the `federation` module instead")]
-pub mod tir;
 pub mod types;
 pub mod validator;
 

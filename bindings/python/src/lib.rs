@@ -44,7 +44,7 @@ fn sign_vc(vc_json: &str, secret_key_hex: &str) -> PyResult<String> {
     let mut vc: ::pdtf_core::types::VerifiableCredential = serde_json::from_str(vc_json)
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("Invalid VC JSON: {e}")))?;
 
-    // FIX 6: Validate issuer matches signing key
+    // Validate issuer matches signing key
     if vc.issuer.id() != did {
         return Err(pyo3::exceptions::PyValueError::new_err(format!(
             "Issuer DID '{}' does not match signing key DID '{}'",
@@ -125,17 +125,23 @@ fn resolve_did_key(did: &str) -> PyResult<String> {
         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
 }
 
-/// Check TIR authorisation. Returns result JSON.
+/// Check federation registry authorisation. Returns result JSON.
 #[pyfunction]
-fn check_tir(registry_json: &str, issuer_did: &str, paths: Vec<String>) -> PyResult<String> {
-    let registry: ::pdtf_core::types::TirRegistry =
+fn check_trust(registry_json: &str, issuer_did: &str, paths: Vec<String>) -> PyResult<String> {
+    let registry: ::pdtf_core::types::FederationRegistry =
         serde_json::from_str(registry_json).map_err(|e| {
             pyo3::exceptions::PyValueError::new_err(format!("Invalid registry JSON: {e}"))
         })?;
-    let result = ::pdtf_core::federation::verify::verify_tir(&registry, issuer_did, &paths);
+    let resolver = ::pdtf_core::federation::FederationRegistryResolver::with_registry(registry);
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Runtime error: {e}")))?;
+    let resolution = rt.block_on(resolver.resolve_trust(issuer_did, None));
+    let result = ::pdtf_core::federation::verify::verify_trust_coverage(&resolution, &paths);
     serde_json::to_string_pretty(&result)
         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
 }
+
+use ::pdtf_core::federation::TrustResolver;
 
 /// Create an empty status list bitstring, encoded as base64 gzip.
 #[pyfunction]
@@ -162,7 +168,7 @@ fn pdtf_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(sign_vc, m)?)?;
     m.add_function(wrap_pyfunction!(verify_proof, m)?)?;
     m.add_function(wrap_pyfunction!(resolve_did_key, m)?)?;
-    m.add_function(wrap_pyfunction!(check_tir, m)?)?;
+    m.add_function(wrap_pyfunction!(check_trust, m)?)?;
     m.add_function(wrap_pyfunction!(create_status_list, m)?)?;
     m.add_function(wrap_pyfunction!(check_status, m)?)?;
     Ok(())

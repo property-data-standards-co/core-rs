@@ -10,7 +10,7 @@ Cryptographic core for the [Property Data Trust Framework](https://propdata.org.
 - **DataIntegrityProof** creation and verification (`eddsa-jcs-2022` cryptosuite)
 - **DID resolution** — `did:key` (local, deterministic) and `did:web` (HTTPS)
 - **Bitstring Status List** — W3C credential revocation/suspension
-- **Trusted Issuer Registry (TIR)** — path-based issuer authorisation
+- **Federation Trust Registry** — path-based issuer authorisation with pluggable trust resolution
 - **VC builder & validator** — 4-stage verification pipeline
 - **Python bindings** via PyO3/maturin
 - **C#/.NET bindings** via P/Invoke FFI (targets .NET 8.0)
@@ -66,7 +66,7 @@ let resolver = DidResolver::default();
 let result = verify_vc(VerifyVcOptions {
     vc: &signed_vc,
     resolver: &resolver,
-    tir_registry: None,
+    trust_resolver: None,
     claimed_paths: vec![],
     status_list_bitstring: None,
 }).await;
@@ -158,7 +158,7 @@ crates/pdtf-core/
 │   ├── signer/        # DataIntegrityProof creation/verification, VC builder
 │   ├── did/           # DID resolution (did:key, did:web), URN validation
 │   ├── status/        # Bitstring Status List (W3C)
-│   ├── tir/           # Trusted Issuer Registry client + verification
+│   ├── federation/    # Federation trust resolution (bootstrap registry + OpenID Federation)
 │   ├── validator/     # 4-stage VC verification pipeline
 │   ├── types.rs       # Core type definitions
 │   └── error.rs       # Error types
@@ -172,6 +172,7 @@ bindings/python/       # PyO3 Python bindings
 - [W3C Bitstring Status List v1.0](https://www.w3.org/TR/vc-bitstring-status-list/)
 - [W3C did:key Method](https://w3c-ccg.github.io/did-method-key/)
 - [W3C did:web Method](https://w3c-ccg.github.io/did-method-web/)
+- [OpenID Federation 1.0](https://openid.net/specs/openid-federation-1_0.html)
 
 ## License
 

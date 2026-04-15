@@ -135,14 +135,14 @@ Console.WriteLine(docJson);
 
 ---
 
-### `PdtfCore.CheckTir(string registryJson, string issuerDid, string[] paths) → TirVerificationResult`
+### `PdtfCore.CheckTrust(string registryJson, string issuerDid, string[] paths) → TrustVerificationResult`
 
-Check whether an issuer is authorised for the given credential paths in a Trusted Issuer Registry.
+Check whether an issuer is authorised for the given credential paths in a Federation Trust Registry.
 
 ```csharp
 using Pdtf.Core;
 
-var result = PdtfCore.CheckTir(registryJson, "did:key:z6Mkh...", 
+var result = PdtfCore.CheckTrust(registryJson, "did:key:z6Mkh...", 
     new[] { "Property:/energyEfficiency/rating" });
 
 Console.WriteLine($"Trusted: {result.Trusted}");
@@ -150,7 +150,7 @@ Console.WriteLine($"Trust level: {result.TrustLevel}");
 Console.WriteLine($"Paths covered: {string.Join(", ", result.PathsCovered)}");
 ```
 
-**Returns:** `TirVerificationResult` with properties:
+**Returns:** `TrustVerificationResult` with properties:
 - `Trusted` (bool) — whether the issuer is authorised
 - `IssuerSlug` (string?) — matched issuer slug
 - `TrustLevel` (string?) — `"rootIssuer"`, `"trustedProxy"`, or `"accountProvider"`
@@ -207,10 +207,10 @@ public sealed class KeyPair
 }
 ```
 
-### `TirVerificationResult`
+### `TrustVerificationResult`
 
 ```csharp
-public sealed class TirVerificationResult
+public sealed class TrustVerificationResult
 {
     public bool Trusted { get; set; }
     public string? IssuerSlug { get; set; }

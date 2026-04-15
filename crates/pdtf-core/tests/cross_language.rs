@@ -10,7 +10,7 @@ use pdtf_core::signer::proof::verify_proof;
 use pdtf_core::status::bitstring::{
     create_status_list, decode_status_list, get_bit, set_bit,
 };
-use pdtf_core::tir::path_match::path_matches;
+use pdtf_core::federation::path_match::path_matches;
 use pdtf_core::types::VerifiableCredential;
 use serde::Deserialize;
 use serde_json::Value;
@@ -27,7 +27,7 @@ struct Vectors {
     #[serde(rename = "statusList")]
     status_list: StatusListVectors,
     #[serde(rename = "tirPathMatching")]
-    tir_path_matching: Vec<TirPathVector>,
+    tir_path_matching: Vec<FederationPathVector>,
 }
 
 #[derive(Deserialize)]
@@ -83,7 +83,7 @@ struct StatusOp {
 }
 
 #[derive(Deserialize)]
-struct TirPathVector {
+struct FederationPathVector {
     pattern: String,
     path: String,
     expected: bool,
@@ -286,10 +286,10 @@ fn crosslang_status_list_operations() {
     }
 }
 
-// ─── TIR Path Matching ─────────────────────────────────────────────────────
+// ─── Federation Path Matching ─────────────────────────────────────────────────────
 
 #[test]
-fn crosslang_tir_path_matching() {
+fn crosslang_federation_path_matching() {
     let v = load_vectors();
 
     for tv in &v.tir_path_matching {

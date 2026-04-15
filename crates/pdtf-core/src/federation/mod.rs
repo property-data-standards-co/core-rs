@@ -1,7 +1,7 @@
 //! Federation — trust resolution, path matching, and verification.
 //!
-//! Replaces the legacy TIR module with a trait-based trust resolution model.
-//! Supports both bootstrap (JSON registry) and OpenID Federation resolution strategies.
+//! Provides a trait-based trust resolution model supporting both bootstrap
+//! (JSON registry) and OpenID Federation resolution strategies.
 
 pub mod client;
 pub mod openid;
@@ -9,7 +9,7 @@ pub mod path_match;
 pub mod verify;
 
 // Re-export the trait and implementations for convenience
-pub use client::BootstrapTrustResolver;
+pub use client::FederationRegistryResolver;
 pub use openid::OpenIdFederationResolver;
 
 use async_trait::async_trait;

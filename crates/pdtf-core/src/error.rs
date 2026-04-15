@@ -26,8 +26,8 @@ pub enum PdtfError {
     #[error("Status list error: {0}")]
     StatusListError(String),
 
-    #[error("TIR error: {0}")]
-    TirError(String),
+    #[error("Federation registry error: {0}")]
+    FederationError(String),
 
     #[error("Serialisation error: {0}")]
     SerialisationError(String),
