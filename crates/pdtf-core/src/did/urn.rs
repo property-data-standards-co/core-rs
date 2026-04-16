@@ -4,7 +4,7 @@
 //! - `urn:pdtf:uprn:{uprn}`
 //! - `urn:pdtf:titleNumber:{number}`
 //! - `urn:pdtf:unregisteredTitle:{uuid}`
-//! - `urn:pdtf:ownership:{uuid}`
+//! - `urn:pdtf:capacity:{uuid}`
 //! - `urn:pdtf:representation:{uuid}`
 //! - `urn:pdtf:consent:{uuid}`
 //! - `urn:pdtf:offer:{uuid}`
@@ -140,7 +140,7 @@ mod tests {
     #[test]
     fn test_parse_ownership_uuid() {
         let parsed =
-            parse_pdtf_urn("urn:pdtf:ownership:550e8400-e29b-41d4-a716-446655440000").unwrap();
+            parse_pdtf_urn("urn:pdtf:capacity:550e8400-e29b-41d4-a716-446655440000").unwrap();
         assert_eq!(parsed.urn_type, PdtfUrnType::Ownership);
     }
 
