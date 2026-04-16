@@ -117,9 +117,9 @@ print(doc["verificationMethod"][0]["type"])  # "Ed25519VerificationKey2020"
 
 ---
 
-### `check_tir(registry_json: str, issuer_did: str, paths: list[str]) → str`
+### `check_trust(registry_json: str, issuer_did: str, paths: list[str]) → str`
 
-Check whether an issuer is authorised for the given credential paths in a Trusted Issuer Registry.
+Check whether an issuer is authorised for the given credential paths in a Federation Trust Registry.
 
 ```python
 import json
@@ -141,7 +141,7 @@ registry = {
     "userAccountProviders": {}
 }
 
-result_json = pdtf_core.check_tir(
+result_json = pdtf_core.check_trust(
     json.dumps(registry),
     "did:key:z6Mkh...",
     ["Property:/energyEfficiency/rating"]
@@ -152,7 +152,7 @@ print(result["paths_covered"])  # ["Property:/energyEfficiency/rating"]
 ```
 
 **Parameters:**
-- `registry_json` — JSON string of the TIR registry
+- `registry_json` — JSON string of the federation registry
 - `issuer_did` — the issuer's DID to check
 - `paths` — list of credential paths to verify authorisation for
 

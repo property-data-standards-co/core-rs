@@ -1,15 +1,15 @@
-//! Glob-style path matching for TIR authorised paths.
+//! Glob-style path matching for federation registry authorised paths.
 //!
 //! Patterns:
 //! - `Property:*` matches `Property:/any/path/here`
 //! - `Property:/energyEfficiency/*` matches `Property:/energyEfficiency/rating`
 //! - Exact match: `Property:/tenure` matches only `Property:/tenure`
 
-/// Check if a TIR authorised path pattern matches a claimed path.
+/// Check if an authorised path pattern matches a claimed path.
 ///
 /// # Examples
 /// ```
-/// use pdtf_core::tir::path_match::path_matches;
+/// use pdtf_core::federation::path_match::path_matches;
 ///
 /// assert!(path_matches("Property:*", "Property:/tenure"));
 /// assert!(path_matches("Property:/energyEfficiency/*", "Property:/energyEfficiency/rating"));

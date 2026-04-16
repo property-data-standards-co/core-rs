@@ -229,13 +229,13 @@ pub extern "C" fn pdtf_resolve_did_key(did: *const c_char) -> *mut c_char {
     }
 }
 
-/// Check TIR authorisation.
-/// `registry_json` — serialized TirRegistry JSON.
+/// Check federation registry trust authorisation.
+/// `registry_json` — serialized FederationRegistry JSON.
 /// `issuer_did` — the DID of the issuer to check.
 /// `paths_json` — JSON array of path strings.
-/// Returns TirVerificationResult JSON. Must be freed with `pdtf_free_string()`.
+/// Returns TrustVerificationResult JSON. Must be freed with `pdtf_free_string()`.
 #[no_mangle]
-pub extern "C" fn pdtf_check_tir(
+pub extern "C" fn pdtf_check_trust(
     registry_json: *const c_char,
     issuer_did: *const c_char,
     paths_json: *const c_char,
@@ -246,12 +246,21 @@ pub extern "C" fn pdtf_check_tir(
         let issuer_str = unsafe { read_c_str(issuer_did, "issuer_did") }?;
         let paths_str = unsafe { read_c_str(paths_json, "paths_json") }?;
 
-        let registry: pdtf_core::types::TirRegistry =
+        let registry: pdtf_core::types::FederationRegistry =
             serde_json::from_str(reg_str).map_err(|e| format!("Invalid registry JSON: {e}"))?;
         let paths: Vec<String> =
             serde_json::from_str(paths_str).map_err(|e| format!("Invalid paths JSON: {e}"))?;
 
-        let result = pdtf_core::tir::verify::verify_tir(&registry, issuer_str, &paths);
+        let resolver = pdtf_core::federation::FederationRegistryResolver::with_registry(registry);
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|e| format!("Runtime error: {e}"))?;
+        let resolution = rt.block_on(pdtf_core::federation::TrustResolver::resolve_trust(
+            &resolver, issuer_str, None,
+        ));
+        let result =
+            pdtf_core::federation::verify::verify_trust_coverage(&resolution, &paths);
         serde_json::to_string_pretty(&result).map_err(|e| e.to_string())
     })) {
         Ok(Ok(json)) => to_c_string(&json),
@@ -260,7 +269,7 @@ pub extern "C" fn pdtf_check_tir(
             std::ptr::null_mut()
         }
         Err(_) => {
-            set_last_error("panic in pdtf_check_tir".into());
+            set_last_error("panic in pdtf_check_trust".into());
             std::ptr::null_mut()
         }
     }
@@ -476,7 +485,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tir_check() {
+    fn test_trust_check() {
         let registry_json = r#"{
             "version": "1.0",
             "lastUpdated": "2026-01-01T00:00:00Z",
@@ -498,7 +507,7 @@ mod tests {
         let paths_cstr = CString::new(r#"["Property:/address"]"#).unwrap();
 
         let result_ptr =
-            pdtf_check_tir(reg_cstr.as_ptr(), issuer_cstr.as_ptr(), paths_cstr.as_ptr());
+            pdtf_check_trust(reg_cstr.as_ptr(), issuer_cstr.as_ptr(), paths_cstr.as_ptr());
         assert!(!result_ptr.is_null());
         let result_json = unsafe { CStr::from_ptr(result_ptr) }.to_str().unwrap();
         let result: serde_json::Value = serde_json::from_str(result_json).unwrap();
@@ -507,7 +516,7 @@ mod tests {
 
         // Unknown issuer
         let unknown_cstr = CString::new("did:key:z6MkUnknown").unwrap();
-        let result2_ptr = pdtf_check_tir(
+        let result2_ptr = pdtf_check_trust(
             reg_cstr.as_ptr(),
             unknown_cstr.as_ptr(),
             paths_cstr.as_ptr(),
