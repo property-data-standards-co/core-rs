@@ -178,4 +178,4 @@ bindings/python/       # PyO3 Python bindings
 
 MIT — see [LICENSE](LICENSE).
 
-**Author:** Ed Molyneux / [Moverly](https://moverly.com)
+**Author:** Ed Molyneux

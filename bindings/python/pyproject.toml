@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "PDTF 2.0 core library — Python bindings"
 requires-python = ">=3.8"
 license = { text = "MIT" }
-authors = [{ name = "Ed Molyneux", email = "ed@moverly.com" }]
+authors = [{ name = "Ed Molyneux", email = "ed@propdata.org.uk" }]
 
 [tool.maturin]
 features = ["pyo3/extension-module"]

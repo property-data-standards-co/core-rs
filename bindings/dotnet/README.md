@@ -339,4 +339,4 @@ Cross-compilation via `cargo build --target` is supported for all platforms.
 
 ## License
 
-MIT — Ed Molyneux / [Moverly](https://moverly.com)
+MIT — Ed Molyneux

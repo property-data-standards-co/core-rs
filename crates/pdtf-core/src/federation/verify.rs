@@ -63,7 +63,7 @@ mod tests {
     fn test_verify_trust_coverage_trusted() {
         let resolution = TrustResolutionResult {
             trusted: true,
-            issuer_slug: Some("moverly".to_string()),
+            issuer_slug: Some("pdtf-platform".to_string()),
             trust_marks: vec![TrustMark {
                 trust_level: TrustLevel::TrustedProxy,
                 authorised_paths: vec!["Property:*".to_string()],

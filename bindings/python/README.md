@@ -266,4 +266,4 @@ All operations are W3C-compliant. VCs signed with this library verify correctly 
 
 ## License
 
-MIT — Ed Molyneux / [Moverly](https://moverly.com)
+MIT — Ed Molyneux

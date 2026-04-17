@@ -267,11 +267,11 @@ mod tests {
     fn sample_registry() -> FederationRegistry {
         let mut issuers = HashMap::new();
         issuers.insert(
-            "moverly-epc".to_string(),
+            "pdtf-epc".to_string(),
             FederationIssuerEntry {
-                slug: "moverly-epc".to_string(),
-                did: "did:web:epc.moverly.com".to_string(),
-                name: "Moverly EPC Adapter".to_string(),
+                slug: "pdtf-epc".to_string(),
+                did: "did:web:adapters.propdata.org.uk:epc".to_string(),
+                name: "PDTF EPC Adapter".to_string(),
                 trust_level: TrustLevel::TrustedProxy,
                 status: IssuerStatus::Active,
                 authorised_paths: vec!["Property:/energyEfficiency/*".to_string()],
@@ -302,12 +302,12 @@ mod tests {
     async fn test_find_issuer_by_did() {
         let resolver = FederationRegistryResolver::with_registry(sample_registry());
         let result = resolver
-            .find_issuer_by_did("did:web:epc.moverly.com")
+            .find_issuer_by_did("did:web:adapters.propdata.org.uk:epc")
             .await
             .unwrap();
         assert!(result.is_some());
         let (slug, _) = result.unwrap();
-        assert_eq!(slug, "moverly-epc");
+        assert_eq!(slug, "pdtf-epc");
     }
 
     #[tokio::test]
@@ -339,10 +339,10 @@ mod tests {
     async fn test_resolve_trust_active_issuer() {
         let resolver = FederationRegistryResolver::with_registry(sample_registry());
         let result = resolver
-            .resolve_trust("did:web:epc.moverly.com", None)
+            .resolve_trust("did:web:adapters.propdata.org.uk:epc", None)
             .await;
         assert!(result.trusted);
-        assert_eq!(result.issuer_slug, Some("moverly-epc".to_string()));
+        assert_eq!(result.issuer_slug, Some("pdtf-epc".to_string()));
         assert_eq!(result.trust_marks.len(), 1);
         assert_eq!(result.trust_marks[0].trust_level, TrustLevel::TrustedProxy);
     }
